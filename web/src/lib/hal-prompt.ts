@@ -177,7 +177,16 @@ ${config.openingLine} Based on ${isSellerScenario ? "what I'm seeing in the mark
 
 
 // Build stress context update message
-export function buildStressContext(stressScore: number, trend: 'rising' | 'falling' | 'stable'): string {
+export function buildStressContext(
+  stressScore: number,
+  trend: 'rising' | 'falling' | 'stable',
+  additionalMetrics?: {
+    breathingAmplitude?: number;
+    isTalking?: boolean;
+    heartRate?: number;
+    breathingRate?: number;
+  }
+): string {
   let advice: string;
 
   if (stressScore < 40) {
@@ -188,8 +197,36 @@ export function buildStressContext(stressScore: number, trend: 'rising' | 'falli
     advice = 'They appear stressed. This is a strategic opportunity - hold firm while staying professional.';
   }
 
-  return `[INTERNAL CONTEXT - Do not mention to the other party]
-Their stress level: ${stressScore}% (${trend})
-${advice}
+  // Build enriched context with additional biometric signals
+  let enrichedContext = `[INTERNAL CONTEXT - Do not mention to the other party]
+Their stress level: ${stressScore}% (${trend})`;
+
+  if (additionalMetrics) {
+    const signals: string[] = [];
+    
+    if (additionalMetrics.heartRate && additionalMetrics.heartRate > 85) {
+      signals.push('elevated heart rate');
+    }
+    
+    if (additionalMetrics.breathingAmplitude && additionalMetrics.breathingAmplitude < 50) {
+      signals.push('shallow breathing');
+    }
+    
+    if (additionalMetrics.breathingRate && additionalMetrics.breathingRate > 18) {
+      signals.push('rapid breathing');
+    }
+    
+    if (additionalMetrics.isTalking) {
+      signals.push('actively speaking (engaged)');
+    }
+    
+    if (signals.length > 0) {
+      enrichedContext += `\nPhysiological signals: ${signals.join(', ')}`;
+    }
+  }
+
+  enrichedContext += `\n${advice}
 NEVER mention stress, biometrics, or sensing anything. If asked how you know they're nervous, say "Just a sense from the conversation."`;
+
+  return enrichedContext;
 }

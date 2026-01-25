@@ -48,15 +48,26 @@ Landing → Modal Choice → Voice Negotiation → Results Reveal
 ```
 iPhone Camera (Presage SDK)
     ↓
-Heart Rate + Breathing Analysis
+Multi-Signal Biometric Collection:
+  • Heart Rate (bpm) with confidence
+  • Breathing Rate (/min) with confidence  
+  • Breathing Amplitude (depth/stress indicator)
+  • Speech Detection (engagement)
     ↓
-Stress Score Calculation
+Baseline Calibration (10s fixed window):
+  Establishes resting HR & BR for accurate stress calculation
     ↓
-Socket.IO → Next.js Server
+Stress Algorithm (0-100%):
+  50 + (HR_deviation × 60) + (BR_deviation × 25) 
+  + amplitude_penalty - talking_bonus
     ↓
-sendContextualUpdate() (every 5s)
+Socket.IO → Next.js Server (7+ signals)
     ↓
-ElevenLabs → Gemini (receives stress context, adapts tactics)
+sendContextualUpdate() (enriched context every 2s)
+    ↓
+ElevenLabs → Gemini 2.5 Flash
+  Receives: stress%, trend, HR/BR flags, shallow breathing, speech status
+  Adapts: tactics, pressure, timing without revealing awareness
     ↓
 Streaming Voice Response
 ```
@@ -64,7 +75,7 @@ Streaming Voice Response
 ## Technical Challenges Solved
 
 **Real-Time Biometric Integration**  
-Built a pipeline that feeds live biometric data to a conversational AI without breaking conversation flow. Uses ElevenLabs' `sendContextualUpdate()` API to inject stress context every 5 seconds, allowing Gemini to adapt tactics mid-conversation.
+Built a pipeline that feeds live biometric data to a conversational AI without breaking conversation flow. Uses ElevenLabs' `sendContextualUpdate()` API to inject stress context every 2 seconds for real-time responsive adaptation, allowing Gemini to adapt tactics mid-conversation.
 
 **Cross-Device Architecture**  
 Implemented Socket.IO server in Next.js API routes for iPhone to web to AI communication. QR code pairing enables instant connection. iPhone emits biometric updates, web client receives stress data, AI adapts behavior.
@@ -100,11 +111,17 @@ haggle/
 │   └── src/lib/
 │       └── hal-prompt.ts                 # Dynamic AI persona and stress context builder
 │
-└── ios-template/                         # Presage SDK + Socket.IO integration
-    └── ContentView.swift
+└── ios/HaggleSensor/                     # Complete iOS app with Presage SDK integration
+    ├── HaggleManager.swift               # Socket.IO client, stress calculation, baseline calibration
+    ├── ContentView.swift                 # Main app navigation
+    ├── MeasurementView.swift             # Camera biometrics display
+    ├── SessionConnectView.swift          # QR scanner and manual session input
+    └── HaggleConfig.swift                # Server URL, Presage API key configuration
 ```
 
 ## Core Implementation
+
+**Web App**
 
 **`hal-prompt.ts`** - Constructs dynamic AI persona with hidden state (budget limits, tactics) and generates stress context strings injected into Gemini via `sendContextualUpdate()`.
 
@@ -113,3 +130,11 @@ haggle/
 **`reveal/[id]/page.tsx`** - Visualizes the AI Transformation Pipeline: timeline showing stress levels mapped to AI response modifications with Gemini post-analysis.
 
 **`api/biometrics/route.ts`** - Socket.IO server handling iPhone connection events, biometric data streaming, and session room management.
+
+**iOS App**
+
+**`HaggleManager.swift`** - Integrates Presage SmartSpectra SDK for contactless biometrics, implements baseline calibration (fixed 10s window for consistency), calculates stress score using multi-signal weighted algorithm, and streams updates to web app via Socket.IO every 1.5 seconds.
+
+**`SessionConnectView.swift`** - QR code scanner supporting deep links (`haggle://<sessionId>`), manual session ID input, and configurable server URL for local development.
+
+**`MeasurementView.swift`** - Real-time camera view from Presage SDK with live heart rate, breathing rate, stress score, and confidence display.

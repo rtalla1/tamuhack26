@@ -18,6 +18,38 @@
       </array>
     </dict>
   </array>
+
+  <!-- Launch Screen Configuration (CRITICAL: Removes black bars) -->
+  <key>UILaunchScreen</key>
+  <dict>
+    <key>UIColorName</key>
+    <string></string>
+    <key>UIImageName</key>
+    <string></string>
+    <key>UILaunchScreen</key>
+    <dict/>
+  </dict>
+
+  <!-- Declare support for all device capabilities -->
+  <key>UIRequiredDeviceCapabilities</key>
+  <array>
+    <string>arm64</string>
+  </array>
+
+  <!-- Support all interface orientations (or restrict as needed) -->
+  <key>UISupportedInterfaceOrientations</key>
+  <array>
+    <string>UIInterfaceOrientationPortrait</string>
+    <string>UIInterfaceOrientationPortraitUpsideDown</string>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+  </array>
+
+  <!-- iPhone-only (remove iPad letterboxing potential) -->
+  <key>UIDeviceFamily</key>
+  <array>
+    <integer>1</integer>
+  </array>
 </dict>
 </plist>
 

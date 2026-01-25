@@ -15,11 +15,19 @@ enum HaggleTheme {
     static let warn = Color(red: 245/255, green: 158/255, blue: 11/255)  // amber-500-ish
     static let ok = Color(red: 34/255, green: 197/255, blue: 94/255)      // green-500
 
+    // Fonts matching web design: Familjen Grotesk for text, JetBrains Mono for numbers
+    // iOS doesn't have exact matches, but we use similar system fonts
+    static func textFont(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        // Familjen Grotesk-like: rounded, modern sans-serif
+        .system(size: size, weight: weight, design: .rounded)
+    }
+    
     static func titleFont(size: CGFloat) -> Font {
-        .system(size: size, weight: .bold, design: .default)
+        .system(size: size, weight: .bold, design: .rounded)
     }
 
     static func monoFont(size: CGFloat, weight: Font.Weight = .medium) -> Font {
+        // JetBrains Mono-like: monospaced for numbers and codes
         .system(size: size, weight: weight, design: .monospaced)
     }
 }

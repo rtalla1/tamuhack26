@@ -6,7 +6,7 @@ This folder contains the **iOS-side implementation** that streams biometrics to 
 
 - **Socket.IO path**: `/api/biometrics/socket`
 - **Join a session room**:
-  - emit: `join-session` with payload `sessionId: String`
+  - emit: `ios-join-session` with payload `sessionId: String`
   - listen: `ios-connected` (ack / confirmation)
 - **Send biometrics** (every 1–2 seconds):
   - emit: `biometric-update` with payload:

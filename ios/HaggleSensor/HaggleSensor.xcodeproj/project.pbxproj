@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		462DEB542F2618DA008703FD /* SocketIO in Frameworks */ = {isa = PBXBuildFile; productRef = 462DEB532F2618DA008703FD /* SocketIO */; };
+		462DEB572F261966008703FD /* SmartSpectraSwiftSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 462DEB562F261966008703FD /* SmartSpectraSwiftSDK */; };
 		A0A0A0A0A0A0A0A0A0A0A0D0 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A0A0A0A0A0A0A0A0A0A0C0 /* ContentView.swift */; };
 		A0A0A0A0A0A0A0A0A0A0A0D1 /* HaggleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A0A0A0A0A0A0A0A0A0A0C1 /* HaggleManager.swift */; };
 		A0A0A0A0A0A0A0A0A0A0A0D2 /* HaggleSensorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A0A0A0A0A0A0A0A0A0A0C2 /* HaggleSensorApp.swift */; };
@@ -39,6 +41,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				462DEB572F261966008703FD /* SmartSpectraSwiftSDK in Frameworks */,
+				462DEB542F2618DA008703FD /* SocketIO in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -60,7 +64,16 @@
 				A0A0A0A0A0A0A0A0A0A0A0C9 /* Assets.xcassets */,
 				A0A0A0A0A0A0A0A0A0A0A0CA /* Info.plist */,
 			);
-			path = HaggleSensor;
+			name = HaggleSensor;
+			path = /Users/rtall/Projects/haggle/ios/HaggleSensor;
+			sourceTree = "<absolute>";
+		};
+		A0A0A0A0A0A0A0A0A0A0A0A1A = {
+			isa = PBXGroup;
+			children = (
+				A0A0A0A0A0A0A0A0A0A0A0A1 /* HaggleSensor */,
+				A0A0A0A0A0A0A0A0A0A0A0A2 /* Products */,
+			);
 			sourceTree = "<group>";
 		};
 		A0A0A0A0A0A0A0A0A0A0A0A2 /* Products */ = {
@@ -69,14 +82,6 @@
 				A0A0A0A0A0A0A0A0A0A0A0B3 /* HaggleSensor.app */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		A0A0A0A0A0A0A0A0A0A0A0A1A /* Main */ = {
-			isa = PBXGroup;
-			children = (
-				A0A0A0A0A0A0A0A0A0A0A0A1 /* HaggleSensor */,
-				A0A0A0A0A0A0A0A0A0A0A0A2 /* Products */,
-			);
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -106,7 +111,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastUpgradeCheck = 1600;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					A0A0A0A0A0A0A0A0A0A0A0A3 = {
 						CreatedOnToolsVersion = 16.0;
@@ -121,7 +126,11 @@
 				en,
 				Base,
 			);
-			mainGroup = A0A0A0A0A0A0A0A0A0A0A0A1A /* Main */;
+			mainGroup = A0A0A0A0A0A0A0A0A0A0A0A1A;
+			packageReferences = (
+				462DEB522F2618DA008703FD /* XCRemoteSwiftPackageReference "socket" */,
+				462DEB552F261966008703FD /* XCRemoteSwiftPackageReference "SmartSpectra" */,
+			);
 			productRefGroup = A0A0A0A0A0A0A0A0A0A0A0A2 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -167,15 +176,46 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ENABLE_MODULES = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = J9URFQQRLQ;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MARKETING_VERSION = 0.1.0;
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tamuhack26.hagglesensor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -186,14 +226,44 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ENABLE_MODULES = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = J9URFQQRLQ;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tamuhack26.hagglesensor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -204,10 +274,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "";
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -216,7 +287,10 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tamuhack26.hagglesensor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -225,9 +299,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = NO;
+				DEAD_CODE_STRIPPING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -236,7 +311,10 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tamuhack26.hagglesensor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -263,7 +341,37 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		462DEB522F2618DA008703FD /* XCRemoteSwiftPackageReference "socket" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/socketio/socket.io-client-swift";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
+		462DEB552F261966008703FD /* XCRemoteSwiftPackageReference "SmartSpectra" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Presage-Security/SmartSpectra";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		462DEB532F2618DA008703FD /* SocketIO */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 462DEB522F2618DA008703FD /* XCRemoteSwiftPackageReference "socket" */;
+			productName = SocketIO;
+		};
+		462DEB562F261966008703FD /* SmartSpectraSwiftSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 462DEB552F261966008703FD /* XCRemoteSwiftPackageReference "SmartSpectra" */;
+			productName = SmartSpectraSwiftSDK;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A0A0A0A0A0A0A0A0A0A0A0A0 /* Project object */;
 }
-

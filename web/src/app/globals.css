@@ -2,10 +2,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Font families */
+/* Font families - Familjen Grotesk for text, JetBrains Mono for numbers */
 @theme inline {
   --font-sans: var(--font-familjen), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-mono: var(--font-mono-custom), ui-monospace, "JetBrains Mono", SFMono-Regular, monospace;
 }
 
 /* Custom scrollbar */
@@ -170,5 +170,13 @@
   body {
     @apply bg-background text-foreground;
     background-color: #0a0a0a;
+  }
+}
+
+/* Apply monospace font to numbers for better readability */
+@layer utilities {
+  .font-numeric {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
   }
 }

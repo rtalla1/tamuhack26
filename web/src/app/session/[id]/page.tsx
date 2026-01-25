@@ -21,6 +21,10 @@ interface Message {
 interface StressData {
   score: number;
   trend: "rising" | "falling" | "stable";
+  breathingAmplitude?: number;
+  isTalking?: boolean;
+  heartRate?: number;
+  breathingRate?: number;
 }
 
 const NEGOTIATION_TIPS = [
@@ -121,6 +125,10 @@ export default function SessionPage() {
 
   // Socket.IO connection for iOS biometric data
   useEffect(() => {
+    // Reset connection state for new session
+    setIosConnected(false);
+    usingRealBiometricsRef.current = false;
+    
     // Initialize socket connection
     const socket = io({
       path: '/api/biometrics/socket',
@@ -138,7 +146,46 @@ export default function SessionPage() {
       console.log('📱 iOS device connected:', data);
       setIosConnected(true);
       usingRealBiometricsRef.current = true;
-      setShowQRModal(false); // Close modal when iPhone connects
+      setIsCalibrating(true); // Explicitly set to calibrating
+      setCalibrationProgress("Initializing...");
+      // Keep modal open to show connection confirmation and start button
+    });
+
+    socket.on('ios-disconnected', (data) => {
+      console.log('📱 iOS device disconnected:', data);
+      setIosConnected(false);
+      usingRealBiometricsRef.current = false;
+      setIsCalibrating(true); // Reset to calibrating for next connection
+      setCalibrationProgress("");
+      // Optionally show QR modal again if conversation hasn't started
+      if (!conversation) {
+        setShowQRModal(true);
+      }
+    });
+
+    socket.on('calibration-update', (data: {
+      isCalibrating: boolean;
+      progress: string;
+    }) => {
+      const logPrefix = data.isCalibrating ? '⏳' : '✅';
+      console.log(`${logPrefix} WEB CLIENT received calibration-update:`, {
+        isCalibrating: data.isCalibrating,
+        progress: data.progress,
+        timestamp: new Date().toLocaleTimeString(),
+        currentModalState: { isCalibrating, showQRModal },
+      });
+      
+      // Force update the state
+      setIsCalibrating(data.isCalibrating);
+      setCalibrationProgress(data.progress);
+      
+      if (!data.isCalibrating) {
+        console.log('🎉🎉🎉 CALIBRATION COMPLETE! Updating UI state to show green button');
+        console.log('  - Setting isCalibrating to FALSE');
+        console.log('  - Modal should now show green "Start Negotiation" button');
+      } else {
+        console.log(`⏱️ Calibration in progress: ${data.progress}`);
+      }
     });
 
     socket.on('stress-update', (data: {
@@ -146,6 +193,9 @@ export default function SessionPage() {
       breathingRate: number;
       stressScore: number;
       confidence: number;
+      breathingAmplitude?: number;
+      isTalking?: boolean;
+      isBlinking?: boolean;
       timestamp: number;
     }) => {
       console.log('💓 Real biometric data received:', data);
@@ -157,11 +207,15 @@ export default function SessionPage() {
         breathingRate: data.breathingRate,
       }));
 
-      // Update stress directly from iOS calculation
+      // Update stress directly from iOS calculation with enriched data
       const newStress: StressData = {
         score: data.stressScore,
         trend: data.stressScore > stressRef.current.score + 5 ? 'rising' :
-               data.stressScore < stressRef.current.score - 5 ? 'falling' : 'stable'
+               data.stressScore < stressRef.current.score - 5 ? 'falling' : 'stable',
+        breathingAmplitude: data.breathingAmplitude,
+        isTalking: data.isTalking,
+        heartRate: data.heartRate,
+        breathingRate: data.breathingRate,
       };
       
       stressRef.current = newStress;
@@ -179,6 +233,11 @@ export default function SessionPage() {
 
     return () => {
       socket.disconnect();
+      // Reset modal flag when leaving session so it shows again in new sessions
+      hasShownModalRef.current = false;
+      setIosConnected(false);
+      setIsCalibrating(true); // Reset for next session
+      setCalibrationProgress("");
     };
   }, [sessionId]);
 
@@ -194,13 +253,20 @@ export default function SessionPage() {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
   const [showQRModal, setShowQRModal] = useState(false);
   const [useBiometrics, setUseBiometrics] = useState(false);
+  const [isCalibrating, setIsCalibrating] = useState(true); // Start as true, iOS will update
+  const [calibrationProgress, setCalibrationProgress] = useState("");
   const hasShownModalRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
   const usingRealBiometricsRef = useRef(false);
 
   const lastStressUpdateRef = useRef<number>(0);
   const stressHistoryRef = useRef<number[]>([]);
-  const stressRef = useRef<StressData>({ score: 50, trend: "stable" });
+  const stressRef = useRef<StressData>({ 
+    score: 50, 
+    trend: "stable",
+    heartRate: 72,
+    breathingRate: 14,
+  });
   const hasStartedRef = useRef(false);
   const messagesRef = useRef<Message[]>([]);
   const hiddenStateRef = useRef(DEFAULT_HIDDEN_STATE);
@@ -383,14 +449,22 @@ export default function SessionPage() {
       // Send stress update to agent (throttled) - only if biometrics are enabled
       if (useBiometrics) {
         const now = Date.now();
-        if (now - lastStressUpdateRef.current >= 5000) {
+        // Send updates every 2 seconds for more responsive AI adaptation
+        if (now - lastStressUpdateRef.current >= 2000) {
           lastStressUpdateRef.current = now;
           if (conversation.status === "connected") {
             const context = buildStressContext(
               stressRef.current.score,
               stressRef.current.trend,
+              {
+                breathingAmplitude: stressRef.current.breathingAmplitude,
+                isTalking: stressRef.current.isTalking,
+                heartRate: stressRef.current.heartRate,
+                breathingRate: stressRef.current.breathingRate,
+              }
             );
             conversation.sendContextualUpdate(context);
+            console.log('📤 Sent stress context to Hal:', stressRef.current.score + '%');
           }
         }
       }
@@ -399,17 +473,38 @@ export default function SessionPage() {
     return () => clearInterval(interval);
   }, [conversation, useBiometrics]);
 
-  // Auto-show QR modal if iPhone not connected
+  // Log calibration state changes
   useEffect(() => {
-    if (!iosConnected && !hasShownModalRef.current && qrCodeUrl) {
+    console.log('🔄 Calibration state changed:', {
+      isCalibrating,
+      progress: calibrationProgress,
+      iosConnected,
+      showModal: showQRModal
+    });
+  }, [isCalibrating, calibrationProgress]);
+
+  // Auto-show QR modal if iPhone not connected (reset for each new session)
+  useEffect(() => {
+    // Only run this effect when sessionId changes, not when iosConnected changes
+    hasShownModalRef.current = false;
+    setIsCalibrating(true); // Reset to calibrating state for new session
+    setCalibrationProgress("");
+    console.log('🔄 Session changed - reset calibration state to true');
+    
+    if (!iosConnected && qrCodeUrl && !hasShownModalRef.current) {
+      console.log('📱 Auto-showing QR modal for session:', sessionId);
       // Wait a moment for the page to load, then show modal
       const timer = setTimeout(() => {
-        setShowQRModal(true);
-        hasShownModalRef.current = true;
+        if (!hasShownModalRef.current) {
+          setShowQRModal(true);
+          hasShownModalRef.current = true;
+        }
       }, 500);
       return () => clearTimeout(timer);
+    } else {
+      console.log('📱 Not showing modal - iosConnected:', iosConnected, 'qrCodeUrl:', !!qrCodeUrl, 'hasShown:', hasShownModalRef.current);
     }
-  }, [iosConnected, qrCodeUrl]);
+  }, [sessionId, qrCodeUrl]); // Removed iosConnected from dependencies
 
   // Handler to start negotiation without biometrics
   const startWithoutBiometrics = useCallback(() => {
@@ -424,6 +519,13 @@ export default function SessionPage() {
 
   // Handler to start negotiation with biometrics
   const startWithBiometrics = useCallback(() => {
+    // Don't allow starting if still calibrating
+    if (isCalibrating) {
+      console.log('⚠️ Cannot start - calibration still in progress');
+      return;
+    }
+    
+    console.log('🚀 Starting negotiation with biometrics enabled');
     setUseBiometrics(true);
     usingRealBiometricsRef.current = true;
     setShowQRModal(false);
@@ -431,7 +533,7 @@ export default function SessionPage() {
       hasStartedRef.current = true;
       startConversation();
     }
-  }, [conversation.status, startConversation, isDevMode]);
+  }, [conversation.status, startConversation, isDevMode, isCalibrating]);
 
   // Cycle through negotiation tips
   useEffect(() => {
@@ -505,6 +607,11 @@ export default function SessionPage() {
         }),
       );
 
+      // Notify iPhone to disconnect
+      if (socketRef.current) {
+        socketRef.current.emit('end-negotiation', sessionId);
+      }
+      
       // Redirect after brief delay to let user see Hal's farewell
       setTimeout(() => {
         router.push(`/reveal/${sessionId}`);
@@ -514,6 +621,11 @@ export default function SessionPage() {
 
   const endNegotiation = async () => {
     await conversation.endSession();
+
+    // Notify iPhone to disconnect
+    if (socketRef.current) {
+      socketRef.current.emit('end-negotiation', sessionId);
+    }
 
     // Save session data for reveal (use ref for latest stress history)
     localStorage.setItem(
@@ -1004,7 +1116,7 @@ export default function SessionPage() {
                   <div className="text-center mb-6">
                     <h2 className="text-2xl font-bold text-white mb-2">Ready to Negotiate?</h2>
                     <p className="text-neutral-400 text-sm">
-                      Use the Haggle Connect iPhone app to enable real-time stress detection.
+                      Use the HaggleSensor iPhone app to enable real-time stress detection.
                     </p>
                   </div>
 
@@ -1040,9 +1152,6 @@ export default function SessionPage() {
                 // iPhone connected - show setup instructions
                 <>
                   <div className="text-center mb-6">
-                    <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <span className="text-3xl">📱</span>
-                    </div>
                     <h2 className="text-2xl font-bold text-white mb-2">iPhone Connected!</h2>
                     <p className="text-green-400 text-sm mb-4">
                       Real-time biometric tracking enabled
@@ -1055,22 +1164,56 @@ export default function SessionPage() {
                       <li>Position your iPhone camera to clearly see your face</li>
                       <li>Ensure good lighting for accurate readings</li>
                       <li>Keep your face in frame during the negotiation</li>
-                      <li>The app will track your stress in real-time</li>
                     </ol>
                   </div>
 
-                  <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 mb-6">
-                    <p className="text-purple-300 text-xs text-center">
-                      <strong>🧠 AI Adaptation:</strong> Hal will sense your stress and adjust tactics accordingly
-                    </p>
-                  </div>
+                  {isCalibrating ? (
+                    <>
+                      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-5 mb-6">
+                        <div className="flex items-center justify-center gap-3 mb-3">
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-400"></div>
+                          <p className="text-yellow-300 text-base font-semibold">
+                            Calibrating Baseline
+                          </p>
+                        </div>
+                        <p className="text-yellow-300/80 text-sm text-center mb-3">
+                          {calibrationProgress || "Waiting for biometric data..."}
+                        </p>
+                        <p className="text-yellow-300/60 text-xs text-center">
+                          Please remain calm and still during calibration (~10 seconds)
+                        </p>
+                      </div>
 
-                  <button
-                    onClick={startWithBiometrics}
-                    className="w-full bg-gradient-to-r from-green-600 to-green-500 text-white py-3 rounded-xl font-semibold hover:from-green-700 hover:to-green-600 transition-colors"
-                  >
-                    Start Negotiation
-                  </button>
+                      <button
+                        disabled
+                        onClick={() => console.log('⚠️ Button clicked but disabled - still calibrating')}
+                        className="w-full bg-neutral-700 text-neutral-400 py-3 rounded-xl font-semibold cursor-not-allowed opacity-60"
+                      >
+                        Calibrating... Please Wait
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 mb-3">
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                          <span className="text-green-400 text-lg">✓</span>
+                          <p className="text-green-300 text-sm font-semibold">
+                            Calibration Complete
+                          </p>
+                        </div>
+                        <p className="text-green-300/70 text-xs text-center">
+                          Baseline established · Ready to begin
+                        </p>
+                      </div>
+                      
+                      <button
+                        onClick={startWithBiometrics}
+                        className="w-full bg-gradient-to-r from-green-600 to-green-500 text-white py-3 rounded-xl font-semibold hover:from-green-700 hover:to-green-600 transition-colors"
+                      >
+                        Start Negotiation
+                      </button>
+                    </>
+                  )}
                 </>
               )}
             </div>

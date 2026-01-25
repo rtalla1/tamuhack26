@@ -19,9 +19,16 @@ final class HaggleManager: ObservableObject {
     @Published var breathingRate: Double = 0
     @Published var stressScore: Int = 50
     @Published var confidence: Double = 0
+    
+    // Additional metrics from Presage
+    @Published var breathingAmplitude: Double = 0
+    @Published var isTalking: Bool = false
+    @Published var isBlinking: Bool = false
 
     @Published var isBaselineBuilding: Bool = true
     @Published var baselineProgressText: String = "0s / \(Int(HaggleConfig.baselineDuration))s"
+    private var lastCalibrationState: Bool = true // Track to send updates on change
+    private var lastCalibrationUpdateTime: TimeInterval = 0 // Throttle updates
 
     // MARK: - Socket.IO
 #if canImport(SocketIO)
@@ -102,14 +109,29 @@ final class HaggleManager: ObservableObject {
                 self.isConnected = true
             }
             self.joinedSessionRoom = false
-            sock.emit("join-session", self.sessionId)
-            // Treat "join-session" as sufficient to begin streaming; `ios-connected` is an ack signal.
+            sock.emit("ios-join-session", self.sessionId)
+            // Treat "ios-join-session" as sufficient to begin streaming; `ios-connected` is an ack signal.
             self.joinedSessionRoom = true
+        }
+        
+        // Listen for negotiation end event from server
+        sock.on("negotiation-ended") { [weak self] _, _ in
+            guard let self else { return }
+            print("🏁 Negotiation ended - auto-disconnecting")
+            DispatchQueue.main.async {
+                self.disconnect()
+            }
         }
 
         sock.on("ios-connected") { [weak self] _, _ in
             guard let self else { return }
             self.joinedSessionRoom = true
+            print("✅ iOS connected - sending initial calibration status")
+            // Send initial calibration status immediately and again after a short delay
+            self.sendCalibrationUpdate(force: true)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.sendCalibrationUpdate(force: true)
+            }
         }
 
         sock.on(clientEvent: .disconnect) { [weak self] _, _ in
@@ -144,7 +166,12 @@ final class HaggleManager: ObservableObject {
     /// Pass the Presage SDK instance when available (see `MeasurementView`).
     func startMeasurement(sdk: Any?) {
 #if canImport(SmartSpectraSwiftSDK)
-        self.sdk = sdk as? SmartSpectraSwiftSDK
+        if let smartSdk = sdk as? SmartSpectraSwiftSDK {
+            self.sdk = smartSdk
+            print("✅ HaggleManager: SDK instance assigned")
+        } else {
+            print("⚠️ HaggleManager: No SDK instance provided")
+        }
 #endif
         startTransmitLoop()
     }
@@ -214,7 +241,12 @@ final class HaggleManager: ObservableObject {
 
         updateBaselineAndStress()
 
-        // Transmit only when connected and quality is acceptable.
+        // Always send calibration updates when connected (regardless of data quality)
+        if isConnected && joinedSessionRoom && !sessionId.isEmpty && isBaselineBuilding {
+            sendCalibrationUpdate()
+        }
+
+        // Transmit biometric data only when connected and quality is acceptable.
         guard isConnected, joinedSessionRoom, !sessionId.isEmpty else { return }
         guard confidence >= HaggleConfig.minConfidenceToTransmit else { return }
         guard heartRate > 0, breathingRate > 0 else { return }
@@ -230,9 +262,22 @@ final class HaggleManager: ObservableObject {
         guard let latestPulse = metrics.pulse.rate.last?.value else { return nil }
         guard let latestBreathing = metrics.breathing.rate.last?.value else { return nil }
 
-        // Confidence/quality signals vary by SDK version. If unavailable, default to 1.0.
-        // TODO: If your Presage SDK exposes confidence, map it here.
-        let conf = 1.0
+        // Get confidence if available from the pulse data (convert Float to Double)
+        let conf = Double(metrics.pulse.rate.last?.confidence ?? 1.0)
+        
+        // Extract additional metrics for enriched stress calculation
+        if let amplitude = metrics.breathing.amplitude.last?.value {
+            breathingAmplitude = Double(amplitude)
+        }
+        
+        if let talking = metrics.face.talking.last {
+            isTalking = talking.detected
+        }
+        
+        if let blinking = metrics.face.blinking.last {
+            isBlinking = blinking.detected
+        }
+        
         return (Double(latestPulse), Double(latestBreathing), conf)
 #else
         return nil
@@ -247,10 +292,12 @@ final class HaggleManager: ObservableObject {
         stressScore = 50
         isBaselineBuilding = true
         baselineProgressText = "0s / \(Int(HaggleConfig.baselineDuration))s"
+        print("🔄 Baseline reset - calibration will take \(Int(HaggleConfig.baselineDuration)) seconds")
     }
 
     private func updateBaselineAndStress() {
         let now = Date().timeIntervalSince1970
+        let previousCalibrationState = isBaselineBuilding
 
         // Only collect baseline samples from "good" measurements.
         let isValid = heartRate > 0 && breathingRate > 0 && confidence >= HaggleConfig.minConfidenceToTransmit
@@ -267,14 +314,22 @@ final class HaggleManager: ObservableObject {
         if let baseHR = baselineHR, let baseBR = baselineBR {
             isBaselineBuilding = false
             stressScore = computeStress(hr: heartRate, br: breathingRate, baselineHR: baseHR, baselineBR: baseBR)
+            
+            // Send calibration complete notification if state changed
+            if previousCalibrationState != isBaselineBuilding {
+                sendCalibrationUpdate(force: true)
+            }
             return
         }
 
         // Otherwise, see if baseline window is complete.
         guard let start = baselineStartAt else {
             isBaselineBuilding = true
-            baselineProgressText = "0s / \(Int(HaggleConfig.baselineDuration))s"
+            baselineProgressText = "Waiting for valid data..."
             stressScore = 50
+            
+            // Send periodic updates
+            sendCalibrationUpdate()
             return
         }
 
@@ -293,22 +348,47 @@ final class HaggleManager: ObservableObject {
             baselineHR = average(hrs)
             baselineBR = average(brs)
             stressScore = computeStress(hr: heartRate, br: breathingRate, baselineHR: baselineHR ?? heartRate, baselineBR: baselineBR ?? breathingRate)
+            
+            // Send calibration complete notification ALWAYS on first completion
+            if previousCalibrationState != isBaselineBuilding {
+                let completionReason = hasEnoughTime ? "time elapsed (\(Int(elapsed))s)" : "samples collected (\(baselineSamples.count))"
+                print("🎉 Calibration COMPLETE! Reason: \(completionReason). Baseline: HR=\(Int(baselineHR ?? 0)) BR=\(Int(baselineBR ?? 0))")
+                sendCalibrationUpdate(force: true)
+                // Send twice to ensure delivery
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    self.sendCalibrationUpdate(force: true)
+                }
+            }
         } else {
             // Keep neutral while calibrating.
             stressScore = 50
+            
+            // Send periodic progress updates (every second via tick)
+            sendCalibrationUpdate()
         }
     }
 
     private func computeStress(hr: Double, br: Double, baselineHR: Double, baselineBR: Double) -> Int {
         guard baselineHR > 0, baselineBR > 0 else { return 50 }
 
-        // Guide algorithm:
-        // stress = 50 + (hrDeviation * 70 + brDeviation * 30)
+        // Enhanced stress algorithm incorporating multiple biometric signals
         let hrDeviation = (hr - baselineHR) / baselineHR
         let brDeviation = (br - baselineBR) / baselineBR
 
-        let stressFromHR = hrDeviation * 70.0
-        let stressFromBR = brDeviation * 30.0
+        var stressFromHR = hrDeviation * 60.0
+        var stressFromBR = brDeviation * 25.0
+        
+        // Factor in breathing amplitude (shallow breathing under stress)
+        // Lower amplitude = higher stress
+        if breathingAmplitude > 0 {
+            let amplitudeStress = (1.0 - min(breathingAmplitude / 100.0, 1.0)) * 10.0
+            stressFromBR += amplitudeStress
+        }
+        
+        // Factor in talking (indicates engagement/composure)
+        if isTalking {
+            stressFromHR -= 5.0 // Slightly reduce stress when talking (shows confidence)
+        }
 
         var stress = 50.0 + (stressFromHR + stressFromBR)
         stress = max(0, min(100, stress))
@@ -323,9 +403,48 @@ final class HaggleManager: ObservableObject {
             "breathingRate": breathingRate,
             "stressScore": stressScore,
             "confidence": confidence,
+            "breathingAmplitude": breathingAmplitude,
+            "isTalking": isTalking,
+            "isBlinking": isBlinking,
             "timestamp": Date().timeIntervalSince1970 * 1000.0,
         ]
         socket?.emit("biometric-update", payload)
+        print("📡 Transmitted: HR=\(Int(heartRate)) BR=\(Int(breathingRate)) Stress=\(stressScore) Amp=\(Int(breathingAmplitude))\(isTalking ? " 🗣️" : "")")
+#endif
+    }
+    
+    private func sendCalibrationUpdate(force: Bool = false) {
+#if canImport(SocketIO)
+        guard isConnected && joinedSessionRoom else { 
+            if !isConnected {
+                print("⚠️ Cannot send calibration update - not connected")
+            }
+            return 
+        }
+        
+        let now = Date().timeIntervalSince1970
+        
+        // Throttle updates to every 2 seconds unless forced
+        guard force || (now - lastCalibrationUpdateTime) >= 2.0 else { 
+            if !force {
+                print("⏭️ Skipping calibration update (throttled)")
+            }
+            return 
+        }
+        
+        lastCalibrationUpdateTime = now
+        
+        let payload: [String: Any] = [
+            "sessionId": sessionId,
+            "isCalibrating": isBaselineBuilding,
+            "progress": baselineProgressText,
+            "timestamp": now * 1000.0,
+        ]
+        socket?.emit("calibration-update", payload)
+        
+        let statusIcon = isBaselineBuilding ? "⏳" : "✅"
+        let statusText = isBaselineBuilding ? "In progress (\(baselineProgressText))" : "COMPLETE ✓"
+        print("\(statusIcon) Sent calibration update: \(statusText)\(force ? " [FORCED]" : "")")
 #endif
     }
 

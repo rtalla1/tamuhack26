@@ -10,12 +10,11 @@ struct SessionConnectView: View {
     @State private var errorText: String?
 
     var body: some View {
-        ZStack {
-            HaggleTheme.bg.ignoresSafeArea()
-
+        GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 18) {
                     header
+                        .padding(.top, geometry.safeAreaInsets.top > 0 ? 20 : 40)
 
                     HaggleCard {
                         VStack(alignment: .leading, spacing: 10) {
@@ -83,12 +82,12 @@ struct SessionConnectView: View {
                             .padding(.horizontal)
                     }
 
-                    Spacer(minLength: 20)
+                        Spacer(minLength: 20)
                 }
                 .padding()
+                .padding(.bottom, geometry.safeAreaInsets.bottom > 0 ? 20 : 40)
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showScanner) {
             QRScannerView(
                 onScan: { raw in
@@ -107,7 +106,7 @@ struct SessionConnectView: View {
                 manualSessionId = haggleManager.sessionId
             }
         }
-        .onChange(of: haggleManager.incomingSessionId) { _, newValue in
+        .onChangeCompat(of: haggleManager.incomingSessionId) { newValue in
             guard let newValue, !newValue.isEmpty else { return }
             manualSessionId = newValue
 
@@ -157,3 +156,15 @@ struct SessionConnectView: View {
     }
 }
 
+private extension View {
+    @ViewBuilder
+    func onChangeCompat<T: Equatable>(of value: T, perform: @escaping (T) -> Void) -> some View {
+        if #available(iOS 17.0, *) {
+            self.onChange(of: value) { _, newValue in
+                perform(newValue)
+            }
+        } else {
+            self.onChange(of: value, perform: perform)
+        }
+    }
+}

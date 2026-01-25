@@ -10,7 +10,7 @@ const familjenGrotesk = Familjen_Grotesk({
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-mono",
+  variable: "--font-mono-custom",
   display: "swap",
 });
 
@@ -26,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${familjenGrotesk.variable} ${jetbrainsMono.variable}`}>
-      <body className="font-sans">{children}</body>
+      <body className="font-sans antialiased">{children}</body>
     </html>
   );
 }
