@@ -182,9 +182,18 @@ struct SessionConnectView: View {
                     let result = SessionLinkParser.parse(from: raw)
                     if let sessionId = result.sessionId {
                         manualSessionId = sessionId
-                    }
-                    if let serverUrl = result.serverUrl {
-                        serverURLString = serverUrl
+                        
+                        // If QR includes server URL, auto-configure and connect
+                        if let serverUrl = result.serverUrl {
+                            serverURLString = serverUrl
+                            
+                            // Auto-connect with parsed server URL
+                            if let url = URL(string: serverUrl) {
+                                showScanner = false
+                                haggleManager.connect(sessionId: sessionId, serverURL: url)
+                                return
+                            }
+                        }
                     }
                     showScanner = false
                 },
