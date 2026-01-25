@@ -2,12 +2,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSession, getSession, completeSession } from '@/lib/store';
 
+interface CreateSessionRequest {
+  openingOffer?: number;
+  targetPrice?: number;
+  walkAwayPrice?: number;
+}
+
 // POST - Create a new session
-export async function POST() {
-  const session = createSession();
+export async function POST(request: NextRequest) {
+  let prices: CreateSessionRequest = {};
   
-  // Don't expose hidden state to client
-  const { hiddenState, ...publicSession } = session;
+  try {
+    prices = await request.json();
+  } catch {
+    // Use defaults if no body provided
+  }
+
+  const session = createSession({
+    currentOffer: prices.openingOffer,
+    targetPrice: prices.targetPrice,
+    walkAwayPrice: prices.walkAwayPrice,
+  });
   
   return NextResponse.json({
     id: session.id,

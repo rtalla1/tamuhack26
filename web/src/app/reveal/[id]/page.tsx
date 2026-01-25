@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   XAxis,
   YAxis,
@@ -10,7 +11,8 @@ import {
   ResponsiveContainer,
   Area,
   ComposedChart,
-} from 'recharts';
+} from "recharts";
+import LightRays from "@/components/LightRays";
 
 interface SessionData {
   hiddenState: {
@@ -19,7 +21,7 @@ interface SessionData {
     currentOffer: number;
   };
   messages: Array<{
-    role: 'user' | 'hal';
+    role: "user" | "hal";
     content: string;
     timestamp: number;
   }>;
@@ -28,7 +30,30 @@ interface SessionData {
     timestamp: number;
     stressAtTime: number;
   }>;
-  finalDeal?: number;
+}
+
+interface Analysis {
+  agreedPrice: number | null;
+  dealReached: boolean;
+  userPerformance: {
+    score: number;
+    grade: string;
+    summary: string;
+  };
+  tactics: {
+    halUsed: string[];
+    userUsed: string[];
+  };
+  keyMoments: Array<{
+    description: string;
+    impact: "positive" | "negative" | "neutral";
+  }>;
+  feedback: {
+    strengths: string[];
+    improvements: string[];
+    tips: string[];
+  };
+  moneyLeftOnTable: number;
 }
 
 export default function RevealPage() {
@@ -37,45 +62,67 @@ export default function RevealPage() {
   const sessionId = params.id as string;
 
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [revealStage, setRevealStage] = useState(0);
-  const [extractedDeal, setExtractedDeal] = useState<number | null>(null);
+  const hasAnalyzedRef = useRef(false);
 
   useEffect(() => {
-    // Load from localStorage
+    if (hasAnalyzedRef.current) return;
+
     const stored = localStorage.getItem(`haggle-session-${sessionId}`);
     if (stored) {
       const data = JSON.parse(stored) as SessionData;
       setSessionData(data);
-      
-      // Try to extract final deal from conversation
-      const dealMatch = extractDealFromConversation(data.messages);
-      setExtractedDeal(dealMatch);
+
+      hasAnalyzedRef.current = true;
+      runAnalysis(data);
     }
     setLoading(false);
   }, [sessionId]);
 
-  // Simple extraction of any salary number mentioned in the last few messages
-  function extractDealFromConversation(messages: SessionData['messages']): number | null {
-    const lastMessages = messages.slice(-5).map(m => m.content).join(' ');
-    const matches = lastMessages.match(/\$?([\d,]+)(?:k|K|,000)?/g);
-    if (matches) {
-      const lastMatch = matches[matches.length - 1];
-      const num = parseInt(lastMatch.replace(/[$,kK]/g, ''));
-      return num < 1000 ? num * 1000 : num;
+  async function runAnalysis(data: SessionData) {
+    setAnalyzing(true);
+    setAnalysisError(null);
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: data.messages,
+          hiddenState: data.hiddenState,
+          stressHistory: data.stressHistory,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setAnalysis(result);
+      } else if (response.status === 429) {
+        setAnalysisError("Rate limit reached. Click to retry.");
+      } else {
+        console.error("Analysis failed:", await response.text());
+        setAnalysisError("Analysis failed. Click to retry.");
+      }
+    } catch (error) {
+      console.error("Analysis error:", error);
+      setAnalysisError("Analysis error. Click to retry.");
+    } finally {
+      setAnalyzing(false);
     }
-    return null;
   }
 
-  // Animate reveal stages
   useEffect(() => {
     if (!sessionData) return;
 
     const timers = [
-      setTimeout(() => setRevealStage(1), 500),
-      setTimeout(() => setRevealStage(2), 2000),
-      setTimeout(() => setRevealStage(3), 3500),
-      setTimeout(() => setRevealStage(4), 5000),
+      setTimeout(() => setRevealStage(1), 300),
+      setTimeout(() => setRevealStage(2), 1500),
+      setTimeout(() => setRevealStage(3), 2700),
+      setTimeout(() => setRevealStage(4), 3900),
+      setTimeout(() => setRevealStage(5), 5100),
     ];
 
     return () => timers.forEach(clearTimeout);
@@ -83,219 +130,398 @@ export default function RevealPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <p className="text-white text-xl">Loading reveal...</p>
+      <main className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
       </main>
     );
   }
 
   if (!sessionData) {
     return (
-      <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+      <main className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <div className="text-center">
           <p className="text-white text-xl mb-4">Session not found</p>
           <button
-            onClick={() => router.push('/')}
-            className="text-blue-400 hover:text-blue-300"
+            onClick={() => (window.location.href = "/")}
+            className="text-neutral-400 hover:text-white transition-colors"
           >
-            Start a new session
+            Start new session
           </button>
         </div>
       </main>
     );
   }
 
-  const finalDeal = extractedDeal || sessionData.hiddenState.currentOffer;
-  const moneyLeft = sessionData.hiddenState.walkAwayPrice - finalDeal;
-  const stressExploitations = sessionData.tacticsUsed.filter(t => t.stressAtTime > 65);
+  const finalDeal =
+    analysis?.agreedPrice || sessionData.hiddenState.currentOffer;
+  const moneyLeft =
+    analysis?.moneyLeftOnTable ??
+    sessionData.hiddenState.walkAwayPrice - finalDeal;
 
-  // Prepare chart data
   const chartData = sessionData.stressHistory.map((score, index) => ({
     time: index,
-    stressScore: score,
+    stress: score,
   }));
 
+  const gradeColors: Record<string, string> = {
+    A: "text-green-400",
+    B: "text-blue-400",
+    C: "text-yellow-400",
+    D: "text-orange-400",
+    F: "text-red-400",
+  };
+
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-white mb-2">The Reveal</h1>
-          <p className="text-slate-400">Let&apos;s see what Hal was hiding...</p>
-        </div>
+    <main className="min-h-screen bg-[#0a0a0a] text-white relative">
+      {/* LightRays Background */}
+      <div className="fixed inset-0 z-0">
+        <LightRays
+          raysOrigin="top-center"
+          raysColor="#ffffff"
+          raysSpeed={0.5}
+          lightSpread={0.4}
+          rayLength={2}
+          followMouse={false}
+          mouseInfluence={0}
+          noiseAmount={0}
+          distortion={0}
+          pulsating={false}
+          fadeDistance={1}
+          saturation={0.5}
+        />
+      </div>
 
-        {/* Hidden State Reveal */}
-        <div className={`transition-all duration-1000 ${revealStage >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <div className="bg-slate-800/50 rounded-2xl p-8 mb-8 border border-slate-700">
-            <h2 className="text-2xl font-bold text-white mb-6 text-center">🎭 Hal&apos;s Hidden State</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center p-6 bg-slate-700/30 rounded-xl">
-                <p className="text-slate-400 text-sm mb-2">Hal&apos;s Walk-Away Price</p>
-                <p className="text-4xl font-bold text-green-400">
-                  ${sessionData.hiddenState.walkAwayPrice.toLocaleString()}
-                </p>
-                <p className="text-slate-500 text-xs mt-2">The maximum Hal would pay</p>
-              </div>
-              
-              <div className="text-center p-6 bg-slate-700/30 rounded-xl">
-                <p className="text-slate-400 text-sm mb-2">Hal&apos;s Target</p>
-                <p className="text-4xl font-bold text-yellow-400">
-                  ${sessionData.hiddenState.targetPrice.toLocaleString()}
-                </p>
-                <p className="text-slate-500 text-xs mt-2">What Hal wanted to pay</p>
-              </div>
-              
-              <div className="text-center p-6 bg-slate-700/30 rounded-xl">
-                <p className="text-slate-400 text-sm mb-2">You Settled At</p>
-                <p className="text-4xl font-bold text-blue-400">
-                  ${finalDeal.toLocaleString()}
-                </p>
-                <p className="text-slate-500 text-xs mt-2">Your final agreement</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Money Left on Table */}
-        <div className={`transition-all duration-1000 delay-300 ${revealStage >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <div className={`rounded-2xl p-8 mb-8 text-center ${
-            moneyLeft > 5000 
-              ? 'bg-red-900/20 border border-red-500/30' 
-              : 'bg-green-900/20 border border-green-500/30'
-          }`}>
-            <p className={`text-lg mb-2 ${moneyLeft > 5000 ? 'text-red-400' : 'text-green-400'}`}>
-              {moneyLeft > 5000 ? '💸 Money Left on the Table' : '🎉 Great Negotiation!'}
-            </p>
-            <p className={`text-6xl font-bold mb-4 ${moneyLeft > 5000 ? 'text-red-500' : 'text-green-500'}`}>
-              ${Math.abs(moneyLeft).toLocaleString()}
-            </p>
-            <p className="text-slate-400">
-              {moneyLeft > 5000 
-                ? `Hal was willing to pay $${sessionData.hiddenState.walkAwayPrice.toLocaleString()}, but you agreed to $${finalDeal.toLocaleString()}.`
-                : `You negotiated within $${moneyLeft.toLocaleString()} of Hal's maximum budget!`
-              }
-            </p>
-          </div>
-        </div>
-
-        {/* Stress Timeline */}
-        <div className={`transition-all duration-1000 delay-500 ${revealStage >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <div className="bg-slate-800/50 rounded-2xl p-8 mb-8 border border-slate-700">
-            <h2 className="text-2xl font-bold text-white mb-6">📈 Your Stress Timeline</h2>
-            
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <ComposedChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="time" stroke="#9CA3AF" label={{ value: 'Time', position: 'bottom', fill: '#9CA3AF' }} />
-                  <YAxis stroke="#9CA3AF" domain={[0, 100]} label={{ value: 'Stress %', angle: -90, position: 'insideLeft', fill: '#9CA3AF' }} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px' }}
-                    labelStyle={{ color: '#F3F4F6' }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="stressScore"
-                    fill="#EF4444"
-                    fillOpacity={0.2}
-                    stroke="#EF4444"
-                    strokeWidth={2}
-                    name="Stress Score"
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-slate-500">
-                <p>No stress data recorded. Connect your phone with Presage to see real biometric data!</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Stress Exploitation Analysis */}
-        <div className={`transition-all duration-1000 delay-700 ${revealStage >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <div className="bg-slate-800/50 rounded-2xl p-8 mb-8 border border-slate-700">
-            <h2 className="text-2xl font-bold text-white mb-6">🎯 Stress Exploitation Analysis</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-6 bg-slate-700/30 rounded-xl">
-                <p className="text-slate-400 text-sm mb-2">Times Your Stress Was Elevated</p>
-                <p className="text-4xl font-bold text-red-400">{stressExploitations.length}</p>
-                <p className="text-slate-500 text-xs mt-2">Moments when Hal could apply pressure</p>
-              </div>
-              
-              <div className="p-6 bg-slate-700/30 rounded-xl">
-                <p className="text-slate-400 text-sm mb-2">Peak Stress Level</p>
-                <p className="text-4xl font-bold text-yellow-400">
-                  {sessionData.stressHistory.length > 0 
-                    ? `${Math.max(...sessionData.stressHistory)}%`
-                    : 'N/A'
-                  }
-                </p>
-                <p className="text-slate-500 text-xs mt-2">Your highest recorded stress</p>
-              </div>
-            </div>
-
-            {stressExploitations.length > 0 && (
-              <div className="mt-6 p-4 bg-red-900/20 border border-red-500/30 rounded-xl">
-                <p className="text-red-400 text-sm">
-                  ⚠️ During {stressExploitations.length} exchanges, your stress exceeded 65%. 
-                  Hal detected these moments and may have used them to hold firm on offers 
-                  or apply subtle pressure.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Conversation Replay */}
-        <div className={`transition-all duration-1000 delay-700 ${revealStage >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <div className="bg-slate-800/50 rounded-2xl p-8 mb-8 border border-slate-700">
-            <h2 className="text-2xl font-bold text-white mb-6">💬 Conversation Replay</h2>
-            
-            <div className="space-y-4 max-h-[400px] overflow-y-auto">
-              {sessionData.messages.map((message, index) => (
-                <div
-                  key={index}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[80%] p-4 rounded-xl ${
-                      message.role === 'user'
-                        ? 'bg-blue-600/50 text-white'
-                        : 'bg-slate-700/50 text-slate-100'
-                    }`}
-                  >
-                    <p className="text-xs font-medium mb-1 opacity-70">
-                      {message.role === 'user' ? 'You' : 'Hal'}
-                    </p>
-                    <p className="text-sm">{message.content}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex justify-center gap-4 mt-8">
+      {/* Header */}
+      <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-4">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <a 
+            href="/"
+            className="flex items-center gap-2 bg-gradient-to-r from-neutral-600/80 to-neutral-900/80 backdrop-blur-md rounded-full px-3 py-2 border border-white/10 hover:border-white/20 transition-colors"
+          >
+            <Image src="/favicon.ico" alt="Haggle" width={24} height={24} />
+            <span className="font-bold">Haggle</span>
+          </a>
           <button
-            onClick={() => router.push('/')}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-medium transition-colors"
+            onClick={() => (window.location.href = "/")}
+            className="bg-white text-black gap-2 px-3 py-2 rounded-full font-semibold hover:bg-neutral-200 transition-colors"
           >
             Try Again
           </button>
         </div>
+      </nav>
 
-        {/* Financial Literacy Message */}
-        <div className="mt-12 text-center text-slate-500 text-sm max-w-2xl mx-auto">
-          <p>
-            <strong className="text-slate-400">The average American leaves $7,000+ on the table in salary negotiations.</strong>
-            {' '}Learning to negotiate effectively—and control your stress response—is one of the 
-            highest-ROI financial skills you can develop. Practice with Haggle until you can 
-            keep your composure under pressure.
-          </p>
+      <div className="pt-24 pb-16 px-6 relative z-10">
+        <div className="max-w-4xl mx-auto">
+          {/* Title */}
+          <div
+            className={`text-center mb-12 transition-all duration-700 ${revealStage >= 1 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+          >
+            <h2 className="text-5xl font-bold text-white mb-2">The Reveal</h2>
+            <p className="text-neutral-500">Powered by Google Gemini</p>
+          </div>
+
+          {/* Score Card */}
+          {analysis && (
+            <div
+              className={`mb-8 transition-all duration-700 ${revealStage >= 2 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+            >
+              <div className="bg-neutral-900 rounded-3xl p-8 text-center border border-neutral-800">
+                <div className="mb-6">
+                  <span
+                    className={`text-9xl font-bold font-mono ${gradeColors[analysis.userPerformance.grade] || "text-white"}`}
+                  >
+                    {analysis.userPerformance.grade}
+                  </span>
+                </div>
+                <div className="text-2xl text-white mb-2 font-mono">
+                  {analysis.userPerformance.score}/100
+                </div>
+                <p className="text-neutral-400 max-w-lg mx-auto">
+                  {analysis.userPerformance.summary}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Analyzing or Error State */}
+          {analyzing && (
+            <div
+              className={`mb-8 transition-all duration-700 ${revealStage >= 2 ? "opacity-100" : "opacity-0"}`}
+            >
+              <div className="bg-neutral-900 rounded-3xl p-8 text-center border border-neutral-800">
+                <div className="w-12 h-12 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-neutral-400">
+                  Analyzing your negotiation...
+                </p>
+              </div>
+            </div>
+          )}
+
+          {analysisError && !analyzing && (
+            <div
+              className={`mb-8 transition-all duration-700 ${revealStage >= 2 ? "opacity-100" : "opacity-0"}`}
+            >
+              <div className="bg-neutral-900 rounded-3xl p-8 text-center border border-yellow-500/30">
+                <p className="text-yellow-400 mb-4">{analysisError}</p>
+                <button
+                  onClick={() => sessionData && runAnalysis(sessionData)}
+                  className="bg-white text-black px-6 py-2 rounded-full font-semibold hover:bg-neutral-200 transition-colors"
+                >
+                  Retry Analysis
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* The Numbers */}
+          <div
+            className={`mb-8 transition-all duration-700 ${revealStage >= 3 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+          >
+            <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
+              <h3 className="text-xl font-semibold text-white mb-6">
+                Hal&apos;s Hidden State
+              </h3>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-neutral-800 rounded-2xl p-5 text-center border border-neutral-700">
+                  <p className="text-neutral-500 text-sm mb-1">Opening</p>
+                  <p className="text-2xl font-bold font-mono text-white">
+                    ${sessionData.hiddenState.currentOffer.toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-neutral-800 rounded-2xl p-5 text-center border border-neutral-700">
+                  <p className="text-neutral-500 text-sm mb-1">Target</p>
+                  <p className="text-2xl font-bold font-mono text-yellow-400">
+                    ${sessionData.hiddenState.targetPrice.toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-neutral-800 rounded-2xl p-5 text-center border border-neutral-700">
+                  <p className="text-neutral-500 text-sm mb-1">Maximum</p>
+                  <p className="text-2xl font-bold font-mono text-green-400">
+                    ${sessionData.hiddenState.walkAwayPrice.toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-white rounded-2xl p-5 text-center">
+                  <p className="text-neutral-600 text-sm mb-1">You Got</p>
+                  <p className="text-2xl font-bold font-mono text-black">
+                    ${finalDeal.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Money Left */}
+          <div
+            className={`mb-8 transition-all duration-700 ${revealStage >= 3 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+          >
+            <div
+              className={`rounded-3xl p-8 text-center ${moneyLeft > 5000 ? "bg-red-500/10 border border-red-500/30" : "bg-green-500/10 border border-green-500/30"}`}
+            >
+              <p
+                className={`text-lg mb-2 ${moneyLeft > 5000 ? "text-red-400" : "text-green-400"}`}
+              >
+                {moneyLeft > 5000
+                  ? "Money left on the table"
+                  : "Great negotiation!"}
+              </p>
+              <p
+                className={`text-6xl font-bold font-mono ${moneyLeft > 5000 ? "text-red-500" : "text-green-500"}`}
+              >
+                ${Math.abs(moneyLeft).toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          {/* Stress Timeline */}
+          <div
+            className={`mb-8 transition-all duration-700 ${revealStage >= 4 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+          >
+            <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
+              <h3 className="text-xl font-semibold text-white mb-6">
+                Your Stress Timeline
+              </h3>
+
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <ComposedChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#262626" />
+                    <XAxis dataKey="time" stroke="#525252" tick={false} />
+                    <YAxis stroke="#525252" domain={[0, 100]} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#171717",
+                        border: "1px solid #262626",
+                        borderRadius: "12px",
+                      }}
+                      labelStyle={{ color: "#F5F5F5" }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="stress"
+                      fill="#EF4444"
+                      fillOpacity={0.2}
+                      stroke="#EF4444"
+                      strokeWidth={2}
+                      name="Stress %"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-neutral-600">
+                  <p>No stress data recorded</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Feedback */}
+          {analysis && (
+            <div
+              className={`mb-8 transition-all duration-700 ${revealStage >= 5 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+            >
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="bg-neutral-900 rounded-3xl p-6 border border-neutral-800">
+                  <h4 className="text-green-400 font-semibold mb-3">
+                    Strengths
+                  </h4>
+                  <ul className="space-y-2">
+                    {analysis.feedback.strengths.map((s, i) => (
+                      <li
+                        key={i}
+                        className="text-neutral-300 text-sm flex items-start gap-2"
+                      >
+                        <span className="text-green-400">+</span> {s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="bg-neutral-900 rounded-3xl p-6 border border-neutral-800">
+                  <h4 className="text-yellow-400 font-semibold mb-3">
+                    Improve
+                  </h4>
+                  <ul className="space-y-2">
+                    {analysis.feedback.improvements.map((s, i) => (
+                      <li
+                        key={i}
+                        className="text-neutral-300 text-sm flex items-start gap-2"
+                      >
+                        <span className="text-yellow-400">!</span> {s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="bg-neutral-900 rounded-3xl p-6 border border-neutral-800">
+                  <h4 className="text-blue-400 font-semibold mb-3">Tips</h4>
+                  <ul className="space-y-2">
+                    {analysis.feedback.tips.map((s, i) => (
+                      <li
+                        key={i}
+                        className="text-neutral-300 text-sm flex items-start gap-2"
+                      >
+                        <span className="text-blue-400">*</span> {s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tactics */}
+          {analysis && (
+            <div
+              className={`mb-8 transition-all duration-700 ${revealStage >= 5 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+            >
+              <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
+                <h3 className="text-xl font-semibold text-white mb-6">
+                  Tactics Used
+                </h3>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-neutral-500 text-sm mb-3">
+                      Hal&apos;s Tactics
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {analysis.tactics.halUsed.map((tactic, i) => (
+                        <span
+                          key={i}
+                          className="px-3 py-1 bg-red-500/10 text-red-400 rounded-full text-sm border border-red-500/20"
+                        >
+                          {tactic}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-neutral-500 text-sm mb-3">
+                      Your Tactics
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {analysis.tactics.userUsed.length > 0 ? (
+                        analysis.tactics.userUsed.map((tactic, i) => (
+                          <span
+                            key={i}
+                            className="px-3 py-1 bg-blue-500/10 text-blue-400 rounded-full text-sm border border-blue-500/20"
+                          >
+                            {tactic}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-neutral-600 text-sm">
+                          None identified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Conversation */}
+          <div
+            className={`mb-8 transition-all duration-700 ${revealStage >= 5 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+          >
+            <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
+              <h3 className="text-xl font-semibold text-white mb-6">
+                Conversation
+              </h3>
+
+              <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                {sessionData.messages.map((message, index) => (
+                  <div
+                    key={index}
+                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[80%] px-4 py-3 text-sm ${
+                        message.role === "user"
+                          ? "bg-white text-black rounded-2xl rounded-br-sm"
+                          : "bg-neutral-800 text-neutral-300 rounded-2xl rounded-bl-sm border border-neutral-700"
+                      }`}
+                    >
+                      <span className="font-medium">
+                        {message.role === "user" ? "You" : "🎭 Hal"}:
+                      </span>{" "}
+                      {message.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="text-center text-neutral-600 text-sm">
+            <p>
+              Analysis by Google Gemini · Voice by ElevenLabs · Biometrics by
+              Presage
+            </p>
+          </div>
         </div>
       </div>
     </main>

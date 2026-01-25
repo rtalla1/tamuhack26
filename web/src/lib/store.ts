@@ -56,15 +56,21 @@ export interface Session {
 // Simple in-memory store
 const sessions = new Map<string, Session>();
 
-export function createSession(): Session {
+interface CreateSessionOptions {
+  walkAwayPrice?: number;
+  targetPrice?: number;
+  currentOffer?: number;
+}
+
+export function createSession(options?: CreateSessionOptions): Session {
   const session: Session = {
     id: uuidv4(),
     createdAt: Date.now(),
     status: 'calibrating',
     hiddenState: {
-      walkAwayPrice: 95000,   // Hal will pay up to $95k
-      targetPrice: 82000,     // Hal wants to pay $82k
-      currentOffer: 78000,    // Hal starts at $78k
+      walkAwayPrice: options?.walkAwayPrice || 95000,
+      targetPrice: options?.targetPrice || 82000,
+      currentOffer: options?.currentOffer || 78000,
       tactics: [
         'anchor',           // Start with low offer
         'budget_constraint', // "Our budget is limited"
