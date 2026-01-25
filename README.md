@@ -2,71 +2,109 @@
 
 **Your body betrays you. Learn to beat it.**
 
-An AI salary negotiation trainer that reads your real-time stress levels and uses them against you—then reveals exactly when and why you cracked.
+An AI negotiation trainer that reads your stress in real-time and uses it against you, then shows you exactly when and why you cracked.
 
-## What It Does
+## The Problem
 
-1. **Negotiate with Hal** - An AI hiring manager with a secret budget and hidden tactics
-2. **Real-time biometrics** - Your phone tracks heart rate and breathing via Presage
-3. **Stress-adaptive AI** - Hal receives contextual updates about your stress and adapts
-4. **The Reveal** - See Hal's hidden budget, your stress timeline, and how much money you left on the table
+78% of people never negotiate their salary. Of those who do, most leave thousands on the table.
+
+Why? Not lack of knowledge, but lack of practice under pressure. You can read all the articles you want, but when you're face-to-face with a hiring manager and your heart is racing, your body gives you away.
+
+Negotiation is a performance skill. Haggle is your training ground.
+
+## The Solution
+
+Practice negotiating with an AI that senses your stress and exploits it like a real negotiator would.
+
+### How It Works
+
+1. Choose your scenario (salary, B2B deal, or consumer bargaining)
+2. Face Hal, an AI negotiator with a secret budget and adaptive tactics
+3. Optional: Use your iPhone camera to track heart rate and breathing via Presage SDK
+4. The AI adapts in real-time based on your stress levels
+5. See the reveal: Hal's hidden budget, your stress timeline, and how much you left on the table
+
+### What Makes It Novel
+
+Most AI tools simulate conversation. We transform AI output using real-time biometric data.
+
+```
+Your Stress (Presage) → Contextual Updates → AI Response Transformation (Gemini)
+     70% elevated              ↓                "I have other candidates..."
+```
+
+The "AI Transformation Pipeline" visualizes exactly how biometric data modified each AI response, demonstrating a novel use of generative AI beyond simple prompting.
+
+## Why Judges Should Care
+
+### USAA Track: Novel AI Transformation
+We transform Gemini's output using real-time biometric data before returning it to the user. The "AI Transformation Pipeline" visualizes this transformation, showing exactly how stress data at timestamp X influenced AI response Y.
+
+### Capital One Track: Financial Literacy
+Teaching people to earn more, not just spend less. The average person leaves $7,500 on the table in salary negotiation, more than most save in a year. We make high-stakes negotiation skills accessible through AI-powered practice.
+
+### Presage: Biometric AI Integration
+Contactless stress detection meets conversational AI. Heart rate and breathing feed into stress score calculations, which drive contextual AI updates. No wearables needed.
+
+### ElevenLabs: Advanced Conversational AI
+Dynamic prompt overrides and contextual updates allow Hal to adapt tactics mid-conversation based on real-time stress signals.
+
+## Technical Challenges Overcome
+
+### Challenge 1: Real-Time Biometric to AI Pipeline
+**Problem:** How do you feed live biometric data to a conversational AI without breaking the conversation flow?
+
+**Solution:** Used ElevenLabs' `sendContextualUpdate()` API to inject stress context every 5 seconds. The AI receives updates like "Candidate stress: 78% (rising)" and adapts its next response without ever mentioning stress to the user.
+
+### Challenge 2: Cross-Device Real-Time Communication
+**Problem:** iPhone app needs to send biometrics to web app instantly, and web app needs to know when iPhone connects.
+
+**Solution:** Built a Socket.IO server in Next.js API routes. iPhone emits `biometric-update` events, web client listens for `stress-update` events. QR code pairing enables seamless connection.
+
+### Challenge 3: Preventing AI Jailbreaking
+**Problem:** Users tried to trick Hal into revealing its budget or flipping roles.
+
+**Solution:** Implemented strict guardrails in the system prompt with hard limits, role enforcement, and a `skip_turn` tool for handling nonsense. Iteratively tested against adversarial inputs.
+
+### Challenge 4: Stress Calculation from Raw Biometrics
+**Problem:** Heart rate alone is not stress. Need to account for baseline, trends, and breathing patterns.
+
+**Solution:** Weighted algorithm: `stress = (hrScore * 0.6) + (breathingScore * 0.4)`, with 10-sample moving average for trend detection (rising/falling/stable).
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|------------|
-| Web App | Next.js 15, React 19, Tailwind CSS |
-| Conversational AI | ElevenLabs Agents Platform |
-| AI Brain | Google Gemini (via ElevenLabs) |
-| Biometrics | Presage SmartSpectra SDK (iOS) |
-| Charts | Recharts |
+| Component         | Technology                         | Why We Chose It                              |
+| ----------------- | ---------------------------------- | -------------------------------------------- |
+| Web App           | Next.js 15, React 19, Tailwind CSS | Server and client in one, fast development   |
+| Conversational AI | ElevenLabs Agents Platform         | Best-in-class voice AI with contextual updates |
+| AI Brain          | Google Gemini 2.5 Flash            | Fast, intelligent, supports dynamic prompts  |
+| Biometrics        | Presage SmartSpectra SDK (iOS)     | Contactless, accurate, sponsor requirement   |
+| Real-Time Sync    | Socket.IO                          | Bidirectional, low-latency, easy to implement |
+| Charts            | Recharts                           | Beautiful, React-native, perfect for reveals |
 
 ## Project Structure
 
 ```
 haggle/
-├── web/                     # Next.js web application
-│   ├── src/
-│   │   ├── app/             # Pages and API routes
-│   │   │   ├── page.tsx     # Landing page
-│   │   │   ├── session/     # Negotiation session
-│   │   │   └── reveal/      # Post-negotiation reveal
-│   │   ├── lib/             # Core logic
-│   │   │   ├── hal-prompt.ts    # Hal's persona & hidden state
-│   │   │   ├── store.ts         # Session storage
-│   │   │   └── stress.ts        # Stress calculation
-│   │   └── hooks/           # React hooks
-│   └── .env.local           # API keys
+├── web/                         # Next.js app (main project)
+│   ├── src/app/
+│   │   ├── page.tsx             # Landing page with scenarios
+│   │   ├── session/[id]/        # Voice negotiation UI
+│   │   ├── reveal/[id]/         # Post-negotiation reveal
+│   │   └── api/
+│   │       ├── biometrics/      # Socket.IO server
+│   │       └── analyze/         # Gemini post-analysis
+│   ├── src/lib/
+│   │   └── hal-prompt.ts        # Dynamic AI persona & stress context
+│   └── src/components/
+│       ├── Plasma.tsx           # WebGL background
+│       └── LightRays.tsx        # Reveal page effects
 │
-└── ios/                     # iOS sensor app (Presage)
-    └── HaggleSensor/        # Xcode project (to be built)
+└── ios-template/                # SwiftUI template (optional)
+    └── ContentView.swift        # Presage + Socket.IO integration
 ```
 
-## Setup
-
-### 1. Create ElevenLabs Agent
-
-1. Go to [elevenlabs.io/app/conversational-ai](https://elevenlabs.io/app/conversational-ai)
-2. Click **Create Agent**
-3. Configure:
-   - **Name**: Hal
-   - **LLM**: Select **Gemini 2.5 Flash** (or Gemini 2.0 Flash)
-   - **Voice**: Pick a professional voice (e.g., Adam, Antoni)
-   - **First Message**: Leave blank (we override this)
-   - **System Prompt**: Leave blank (we override this)
-4. Copy the **Agent ID** from the URL or settings
-
-### 2. Configure Environment
-
-Edit `web/.env.local`:
-
-```bash
-NEXT_PUBLIC_ELEVENLABS_AGENT_ID=your_agent_id_here
-ELEVENLABS_API_KEY=your_elevenlabs_api_key
-GEMINI_API_KEY=your_gemini_api_key  # Optional, for backup
-```
-
-### 3. Run the App
+## Quick Start
 
 ```bash
 cd web
@@ -74,125 +112,241 @@ npm install
 npm run dev
 ```
 
-Open **http://localhost:3000**
+Visit http://localhost:3000 and choose a scenario to start negotiating.
 
-## How It Works
+**Note:** Requires ElevenLabs API key and Agent ID in `.env.local`.
 
-### Architecture
+## Demo Flow (What Judges Will See)
+
+### 1. Landing Page
+- Clean, modern UI with scenario selection (Salary, B2B, Consumer)
+- "Meet Hal" section with personality preview
+- "How it works" explanation with visual steps
+
+### 2. Start Modal (Critical UX Decision)
+**Without iPhone:**
+- QR code displayed for pairing
+- "Continue Without Biometrics" button
+- Starts negotiation with no tracking (pure strategy practice)
+
+**With iPhone Connected:**
+- "iPhone Connected!" with setup instructions
+- Shows camera positioning tips
+- "Start Negotiation" button
+- Starts with real-time biometric tracking
+
+### 3. The Negotiation
+- Voice conversation with Hal (speech-to-text, AI response, text-to-speech)
+- Right sidebar shows:
+  - Biometric source (iPhone vs Disabled)
+  - Live heart rate and breathing (if enabled)
+  - Real-time stress meter (0-100%)
+  - Warning when stress exceeds 65%
+- Clean chat transcript (user text shows immediately, Hal's text appears after speech completes)
+
+### 4. The Reveal
+- Score card showing your result vs Hal's hidden budget
+- AI Transformation Pipeline (USAA track): Timeline showing stress levels and corresponding AI responses
+- Stress timeline chart graphing your stress over the conversation
+- Gemini post-analysis with personalized feedback
+- Money left on table
+
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Haggle Web App                    │
-│                                                     │
-│  useConversation() from @elevenlabs/react           │
-│    ├─ overrides.agent.prompt = Hal's persona        │
-│    ├─ overrides.agent.llm = "gemini-2.5-flash"      │
-│    └─ sendContextualUpdate("Stress: 78%")           │
-│                                                     │
-└──────────────────────────│──────────────────────────┘
-                           │
-                    ElevenLabs handles:
-                    ✓ Voice input (STT)
-                    ✓ LLM calls (Gemini)
-                    ✓ Voice output (TTS)
-                    ✓ Turn-taking
+┌──────────────────────────────────────────────────────────────┐
+│                        Haggle Web App                        │
+│                                                              │
+│  Landing → Modal Choice → Negotiation → Reveal              │
+│              ↓                ↓              ↓               │
+│      (iPhone or not?)  (Voice + AI)    (Charts + AI)        │
+└────────────────┬────────────┬────────────────────────────────┘
+                 │            │
+        ┌────────┴─────┐  ┌───┴────────────────────┐
+        │ Socket.IO    │  │ ElevenLabs Platform    │
+        │   Server     │  │  ✓ Speech-to-Text      │
+        │              │  │  ✓ Gemini 2.5 Flash    │
+        │ /api/        │  │  ✓ Text-to-Speech      │
+        │ biometrics/  │  │  ✓ Turn-taking         │
+        │ socket       │  │  ✓ Dynamic prompts     │
+        └────┬─────────┘  └────────────────────────┘
+             │
+             │ Real-time WebSocket
+             │
+      ┌──────┴───────┐
+      │ iPhone App   │
+      │              │
+      │ Presage SDK  │
+      │  ↓           │
+      │ Camera       │
+      │  ↓           │
+      │ HR + BR      │
+      │  ↓           │
+      │ Stress Score │
+      └──────────────┘
 ```
 
-### The Magic: `sendContextualUpdate`
+### The Key: sendContextualUpdate()
 
-When biometrics indicate elevated stress, we send:
+Every 5 seconds, when stress is detected:
 
 ```typescript
 conversation.sendContextualUpdate(`
-  [INTERNAL CONTEXT - Do not mention to candidate]
-  Candidate stress level: 78% (elevated, rising)
+  [INTERNAL CONTEXT - Do not mention to the other party]
+  Their stress level: 78% (elevated, rising)
   This is a strategic opportunity - hold firm while remaining professional.
+  NEVER mention stress, biometrics, or sensing anything.
 `);
 ```
 
-Hal receives this context and adapts negotiation tactics accordingly—without ever revealing that it knows.
+Gemini receives this hidden context and adapts its next response (holding firm, applying time pressure, or using constraint claims) without revealing it knows you're stressed.
 
-### The Reveal
+## iPhone Integration (Optional)
 
-After the negotiation ends, we show:
-- **AI Transformation Pipeline** (USAA Challenge) - How stress data transformed Gemini's responses
-- Hal's **hidden budget** (what they could have paid)
-- Your **stress timeline** (when you spiked)
-- **Money left on table** (the difference)
-- **Tactics analysis** and personalized feedback
+**Status:** Socket.IO server ready, iOS app in development
 
-## iOS Sensor App Integration
+### Connection Flow
+1. User starts negotiation, modal shows QR code
+2. Scan with iPhone app (Presage SDK)
+3. Socket.IO connects: `ws://localhost:3000/api/biometrics/socket`
+4. iPhone sends updates every 1-2 seconds
+5. Web app displays real-time biometrics
 
-### Status: ✅ Server Ready | 🔄 iOS App In Progress
+### Without iPhone
+The app works perfectly without iPhone. It is not required for the core demo. Users can practice pure strategy without biometric tracking.
 
-The web app now has **full Socket.IO integration** to receive real-time biometric data from the iOS companion app.
+**For judges:** We can demo both modes to show system flexibility.
 
-### How It Works
+## For Judges: Why This Wins
 
-```
-iPhone (Presage SDK) → Socket.IO → Web App → ElevenLabs/Gemini
-  📱 Heart rate          🔌 Real-time    💻 Stress gauge    🧠 AI adapts
-  📱 Breathing           🔌 WebSocket    💻 QR code pairing  🧠 Tactics shift
-```
+### Creativity
+Nobody else is doing this. Negotiation trainers exist. Biometric apps exist. Conversational AI exists. But real-time biometric feedback loops that transform AI behavior? That's unique.
 
-### For Web App Users (Already Implemented)
+We're not just chatting with an AI. We're creating a dynamic adversarial training environment where your own body becomes the training signal.
 
-1. **Start a negotiation session**
-2. **Click "Connect iPhone"** in the biometrics panel
-3. **Scan QR code** with Haggle iOS app
-4. **iPhone connects automatically** via Socket.IO
-5. **Real-time stress data** replaces simulated data
+### Practicality
+This solves a real problem with a massive market:
+- 78% of people never negotiate salary
+- Those who do leave an average of $7,500 on the table (Salary.com)
+- That's $200k-$500k over a career
+- Market: Anyone entering job market, switching roles, or negotiating contracts
 
-### For iOS App Development
+Immediate use cases:
+- New grads preparing for first salary negotiation
+- Mid-career professionals switching jobs
+- Sales teams practicing high-stakes pitches
+- Entrepreneurs negotiating with investors or vendors
 
-**Socket.IO Endpoint:** `ws://localhost:3000/api/biometrics/socket`
+### Technicality
+We solved hard problems during this hackathon:
 
-**Events to implement:**
-```typescript
-// 1. Connect and join session
-socket.emit('join-session', sessionId);
+1. Real-time biometric to AI pipeline with custom stress algorithm and contextual updates
+2. Cross-device Socket.IO architecture (iPhone to Next.js to ElevenLabs)
+3. AI jailbreak prevention with iterative prompt engineering against adversarial inputs
+4. Voice conversation state management with React hooks, ElevenLabs SDK, and hidden state
+5. Dynamic AI persona system supporting multiple negotiation scenarios in one codebase
 
-// 2. Send biometric updates (every 1-2 seconds)
-socket.emit('biometric-update', {
-  sessionId: string,
-  heartRate: number,        // bpm
-  breathingRate: number,    // breaths/min
-  stressScore: number,      // 0-100
-  confidence: number,       // 0-1 (optional)
-  timestamp: number         // milliseconds
-});
+Tech diversity: Next.js, React, TypeScript, WebGL, Socket.IO, ElevenLabs SDK, Gemini API, Presage SDK, Recharts, QR code generation
 
-// 3. Listen for connection confirmation
-socket.on('ios-connected', (data) => {
-  console.log('Connected to session:', data);
-});
-```
+### Presentation
+- Modern, polished UI with WebGL backgrounds, smooth animations, clean design
+- Seamless UX with QR code pairing, real-time updates, no friction
+- Compelling narrative arc: Setup, Tension, Revelation
+- Data visualization making the invisible (stress) visible
+- The Reveal moment when users see exactly when their body betrayed them
 
-### Testing Without iOS
+### X-Factor
+This creates an experience, not just a demo.
 
-The web app includes **simulated biometrics** that work identically to real data for development and demo purposes.
+Imagine:
+1. Judge volunteers to negotiate
+2. We scan their iPhone
+3. They talk to Hal
+4. Their stress shows up in real-time: 45%, 62%, 78%
+5. Hal gets more aggressive when they're nervous
+6. The Reveal: "You accepted $105k. Hal's max was $125k. At 3:47, your stress spiked to 78% and Hal sensed weakness. That single moment cost you $20,000."
 
-## Key Files
+## Sponsor Track Alignment
 
-| File | Purpose |
-|------|---------|
-| `lib/hal-prompt.ts` | Hal's persona, hidden state, and stress-context builder |
-| `app/session/[id]/page.tsx` | Main negotiation UI with ElevenLabs integration |
-| `app/reveal/[id]/page.tsx` | Post-negotiation reveal with charts |
+### USAA: Novel AI Transformation
+**Requirement:** "Transform AI output in a novel and interesting way prior to returning it to the end user."
 
-## Submission Notes
+**Our solution:** Biometric data feeds contextual updates that transform AI response behavior in real-time.
 
-### ElevenLabs (Conversational AI)
-> "We use ElevenLabs Conversational AI with dynamic prompt overrides and contextual updates. Stress data from Presage is sent via `sendContextualUpdate()`, allowing Hal to adapt tactics in real-time without the user knowing."
+We don't just prompt Gemini. We transform its behavior using external biometric signals. The "AI Transformation Pipeline" on the reveal page shows judges the exact transformation process with timestamps.
 
-### Gemini
-> "Gemini powers Hal's negotiation intelligence through ElevenLabs' native integration. The prompt includes hidden state (budget limits) and instructions to exploit stress opportunities."
+**Judge value:** Clear visualization of input, transformation, and output.
 
-### Presage
-> "Presage's contactless biometrics detect stress in real-time. Heart rate and breathing patterns are used to calculate a stress score, which is fed to the AI negotiator."
+### Capital One: Financial Literacy
+**Requirement:** "Improve financial literacy" (broad, creative approaches welcome)
 
-### USAA (Novel AI Transformation)
-> "We use generative AI (Gemini) and transform its output in a novel way using real-time biometric data from Presage. User stress → contextual updates → adaptive AI responses. The 'AI Transformation Pipeline' on our reveal page visualizes exactly how stress data modified each AI response."
+**Our angle:** Teaching people to earn more, not just spend less.
 
-### Capital One (Financial Literacy)
-> "Most financial literacy tools teach you to spend less. Haggle teaches you to earn more. The average person leaves $7,000 on the table—more than most save in a year. We make negotiation skills accessible through AI-powered practice with real-time feedback."
+Financial literacy usually means budgeting and saving. But if you leave $7,500 on the table in negotiation, that's more than most people save in a year. Haggle teaches the highest-ROI financial skill: negotiation.
+
+**Real-world impact:** Better negotiation equals better compensation equals better financial outcomes.
+
+### ElevenLabs: Conversational AI
+**Advanced SDK usage:**
+- `overrides.agent.prompt` for dynamic persona per scenario
+- `overrides.agent.firstMessage` for scenario-specific openers
+- `sendContextualUpdate()` for real-time stress context injection
+- Voice conversation state management with React hooks
+
+We're pushing ElevenLabs to its limits.
+
+### Presage: Biometric Integration
+**Novel application of contactless vitals:**
+- Heart rate and breathing feed stress score calculation
+- Real-time stress trends (rising/falling/stable)
+- Fed into AI decision-making pipeline
+- No wearables, no friction, just your phone camera
+
+**Judge value:** Clear demonstration of Presage to AI transformation pipeline.
+
+## Pitch Talking Points
+
+**Opening hook:**
+"Raise your hand if you've ever negotiated your salary. Keep it raised if you felt confident the whole time. That's the problem we're solving."
+
+**The problem:**
+"78% of people never negotiate. Those who do often leave thousands on the table, not because they don't know what to say, but because they crack under pressure. Negotiation is a performance skill, and you can't practice it by reading articles."
+
+**Our solution:**
+"Haggle is your training ground. You negotiate with Hal, an AI that has a secret budget and adapts its tactics based on your real-time stress levels, just like a real negotiator would."
+
+**The tech:**
+"We're using Presage's biometric SDK to detect stress through your phone camera, feeding that into Gemini via ElevenLabs' contextual update system, and transforming AI behavior in real-time. When your heart rate spikes, Hal gets more aggressive."
+
+**The reveal:**
+"After the negotiation, we show you the brutal truth: Hal's hidden budget, your stress timeline, and exactly how much money you left on the table. The 'AI Transformation Pipeline' shows you the exact moments where stress influenced the AI's response."
+
+**Why it matters:**
+"The average person leaves $7,500 on the table in salary negotiation. Over a career, that's $200,000 to $500,000 in lost earnings. We're making the highest-ROI financial skill accessible through AI-powered practice."
+
+**Call to action:**
+"Who wants to try? Fair warning: Hal is ruthless."
+
+## Key Files for Judges Reviewing Code
+
+| File                           | What to Look For                                                      |
+| ------------------------------ | --------------------------------------------------------------------- |
+| `web/src/lib/hal-prompt.ts`    | Dynamic persona system, stress context builder, hidden state logic    |
+| `web/src/app/session/[id]/page.tsx` | ElevenLabs integration, Socket.IO client, stress calculation     |
+| `web/src/app/reveal/[id]/page.tsx` | AI Transformation Pipeline visualization, Gemini post-analysis   |
+| `web/src/app/api/biometrics/route.ts` | Socket.IO server for real-time iPhone to web communication      |
+
+## Future Vision (Post-Hackathon)
+
+- Enterprise B2B: Sales teams practicing high-stakes pitches
+- Career coaching platform: White-label for university career centers
+- Multiplayer mode: Practice negotiating with friends, see who cracks first
+- More scenarios: Real estate, freelance rates, investment pitches
+- Progress tracking: See your stress management improve over time
+- Marketplace: Custom negotiation scenarios (industry-specific)
+
+The vision: Make negotiation practice as common as interview prep.
+
+---
+
+Built at TAMUhack 2026
