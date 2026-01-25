@@ -35,6 +35,11 @@ interface AnalysisResult {
     improvements: string[];
     tips: string[];
   };
+  financialLiteracy?: {
+    concept: string;
+    realWorldApplication: string;
+    savingsImpact?: string;
+  };
   moneyLeftOnTable: number;
 }
 
@@ -104,6 +109,11 @@ Analyze this negotiation objectively. The user's goal was to get the best deal f
     "strengths": [<2-3 things they did well, be specific>],
     "improvements": [<2-3 things they could improve, be actionable>],
     "tips": [<2-3 specific, practical tips for their next negotiation>]
+  },
+  "financialLiteracy": {
+    "concept": <1-sentence explanation of the key financial concept demonstrated (e.g., "Knowing your walk-away number prevents costly emotional decisions", "Anchoring bias affects perceived value", "Negotiation can significantly impact lifetime earnings")>,
+    "realWorldApplication": <2-3 sentences on how this applies to personal finance, salary negotiations, major purchases, or financial planning>,
+    "savingsImpact": <Optional: if applicable, estimate potential savings/earnings impact, e.g., "$5,000 better negotiation = $150,000+ over 30-year mortgage" or "Negotiating a $5k salary increase = $200k+ over career">
   }
 }
 
@@ -115,6 +125,14 @@ SCORING GUIDANCE:
 - Factor in: composure under stress, use of tactics, information gathering, and confidence
 - If no price was agreed upon, assess based on their approach and process
 - Be constructive but honest - this is a learning tool
+
+FINANCIAL LITERACY GUIDANCE:
+- Emphasize how negotiation skills translate to real financial impact
+- Connect stress management to better financial decision-making
+- Highlight the compound effect of negotiation (e.g., salary increases compound over careers)
+- Frame feedback in terms of financial empowerment and long-term wealth building
+- If discussing salary: mention that a $5k increase can become $200k+ over a career
+- If discussing purchases: show how negotiation saves more than discounts/coupons ever could
 
 Return ONLY the JSON object. No markdown formatting or extra explanation.`;
 

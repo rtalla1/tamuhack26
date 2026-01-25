@@ -52,6 +52,10 @@ final class HaggleManager: ObservableObject {
         let br: Double
         let confidence: Double
     }
+    
+    // Stress smoothing - exponential weighted moving average for responsiveness
+    private var smoothedStress: Double = 50.0
+    private let alpha: Double = 0.4 // Smoothing factor (0-1): higher = more responsive
 
     private var baselineStartAt: TimeInterval?
     private var baselineSamples: [Sample] = []
@@ -290,6 +294,7 @@ final class HaggleManager: ObservableObject {
         baselineHR = nil
         baselineBR = nil
         stressScore = 50
+        smoothedStress = 50.0 // Reset EWMA
         isBaselineBuilding = true
         baselineProgressText = "0s / \(Int(HaggleConfig.baselineDuration))s"
         print("🔄 Baseline reset - calibration will take \(Int(HaggleConfig.baselineDuration)) seconds")
@@ -390,9 +395,15 @@ final class HaggleManager: ObservableObject {
             stressFromHR -= 5.0 // Slightly reduce stress when talking (shows confidence)
         }
 
-        var stress = 50.0 + (stressFromHR + stressFromBR)
-        stress = max(0, min(100, stress))
-        return Int(stress.rounded())
+        var rawStress = 50.0 + (stressFromHR + stressFromBR)
+        rawStress = max(0, min(100, rawStress))
+        
+        // Apply exponential weighted moving average (EWMA) for responsive smoothing
+        // EWMA = alpha * current + (1 - alpha) * previous
+        // Higher alpha (0.4) = more responsive to changes, still smooth
+        smoothedStress = (alpha * rawStress) + ((1.0 - alpha) * smoothedStress)
+        
+        return Int(smoothedStress.rounded())
     }
 
     private func sendBiometricUpdate() {

@@ -26,6 +26,13 @@ interface SessionData {
     timestamp: number;
   }>;
   stressHistory: number[];
+  halContextLogs?: Array<{
+    timestamp: number;
+    stressScore: number;
+    trend: string;
+    contextSent: string;
+    messageIndex: number;
+  }>;
   tacticsUsed: Array<{
     timestamp: number;
     stressAtTime: number;
@@ -52,6 +59,11 @@ interface Analysis {
     strengths: string[];
     improvements: string[];
     tips: string[];
+  };
+  financialLiteracy?: {
+    concept: string;
+    realWorldApplication: string;
+    savingsImpact?: string;
   };
   moneyLeftOnTable: number;
 }
@@ -270,6 +282,88 @@ export default function RevealPage() {
                 >
                   Retry Analysis
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* Hal's Perspective - Proof of AI Adaptation */}
+          {sessionData && sessionData.halContextLogs && sessionData.halContextLogs.length > 0 && (
+            <div
+              className={`mb-8 transition-all duration-700 ${revealStage >= 3 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+            >
+              <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 rounded-3xl p-8 border border-purple-500/30">
+                <div className="flex items-center gap-3 mb-6">
+                  <span className="text-3xl">👁️</span>
+                  <div>
+                    <h3 className="text-xl font-semibold text-white">
+                      Hal&apos;s Perspective
+                    </h3>
+                    <p className="text-purple-400 text-sm">
+                      The exact stress context Hal received during your conversation
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-6">
+                  <p className="text-yellow-300 text-sm">
+                    <strong>Proof of AI adaptation:</strong> Below are the actual contextual updates sent to Gemini every 2 seconds. 
+                    This is what informed Hal&apos;s tactics in real-time.
+                  </p>
+                </div>
+
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {sessionData.halContextLogs
+                    .filter((_, idx) => idx % 3 === 0 || idx === sessionData.halContextLogs!.length - 1) // Sample every 3rd + last
+                    .slice(0, 8) // Max 8 examples
+                    .map((log, idx) => {
+                      const relativeTime = Math.floor(
+                        (log.timestamp - (sessionData.messages[0]?.timestamp || log.timestamp)) / 1000
+                      );
+                      const minutes = Math.floor(relativeTime / 60);
+                      const seconds = relativeTime % 60;
+                      const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+                      const halMessage = sessionData.messages.find(
+                        (m, i) => m.role === 'hal' && i >= log.messageIndex && i <= log.messageIndex + 1
+                      );
+
+                      return (
+                        <div key={idx} className="bg-neutral-900/50 rounded-xl p-4 border border-neutral-800">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-neutral-400 text-xs font-mono">[{timeStr}]</span>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              log.stressScore > 65 ? 'bg-red-500/20 text-red-400' :
+                              log.stressScore > 50 ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-green-500/20 text-green-400'
+                            }`}>
+                              {log.stressScore}% ({log.trend})
+                            </span>
+                          </div>
+
+                          <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 mb-3">
+                            <p className="text-purple-300 text-xs font-mono leading-relaxed whitespace-pre-wrap">
+                              {log.contextSent}
+                            </p>
+                          </div>
+
+                          {halMessage && (
+                            <div className="mt-3 pt-3 border-t border-neutral-800">
+                              <p className="text-neutral-500 text-xs mb-1">Hal&apos;s Response:</p>
+                              <p className="text-neutral-300 text-sm italic">
+                                &quot;{halMessage.content.slice(0, 150)}{halMessage.content.length > 150 ? '...' : ''}&quot;
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+
+                <div className="mt-4 text-center">
+                  <p className="text-neutral-500 text-xs">
+                    {sessionData.halContextLogs.length} total updates sent to Hal during negotiation
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -543,6 +637,54 @@ export default function RevealPage() {
                       </li>
                     ))}
                   </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Financial Literacy Section - Capital One Track */}
+          {analysis && analysis.financialLiteracy && (
+            <div
+              className={`mb-8 transition-all duration-700 ${revealStage >= 6 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+            >
+              <div className="bg-gradient-to-br from-blue-900/20 to-green-900/20 rounded-3xl p-8 border border-blue-500/30">
+                <div className="flex items-center gap-3 mb-6">
+                  <span className="text-3xl">💡</span>
+                  <div>
+                    <h3 className="text-xl font-semibold text-white">
+                      Financial Literacy Lesson
+                    </h3>
+                    <p className="text-blue-400 text-sm">
+                      How negotiation skills build long-term wealth
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="bg-neutral-900/50 rounded-2xl p-6">
+                    <h4 className="text-green-400 font-semibold mb-2 text-sm">Key Concept</h4>
+                    <p className="text-white text-base">
+                      {analysis.financialLiteracy.concept}
+                    </p>
+                  </div>
+
+                  <div className="bg-neutral-900/50 rounded-2xl p-6">
+                    <h4 className="text-blue-400 font-semibold mb-2 text-sm">Real-World Application</h4>
+                    <p className="text-neutral-300 text-sm leading-relaxed">
+                      {analysis.financialLiteracy.realWorldApplication}
+                    </p>
+                  </div>
+
+                  {analysis.financialLiteracy.savingsImpact && (
+                    <div className="bg-gradient-to-r from-green-500/10 to-blue-500/10 rounded-2xl p-6 border border-green-500/20">
+                      <h4 className="text-green-400 font-semibold mb-2 text-sm flex items-center gap-2">
+                        <span>💰</span> Long-Term Financial Impact
+                      </h4>
+                      <p className="text-green-300 text-sm font-medium">
+                        {analysis.financialLiteracy.savingsImpact}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

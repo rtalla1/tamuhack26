@@ -338,13 +338,24 @@ struct MeasurementView: View {
                             Divider()
                                 .background(Color.white.opacity(0.1))
                             
-                            HStack(spacing: 4) {
-                                Image(systemName: "arrow.right.circle.fill")
-                                    .foregroundColor(HaggleTheme.accent)
-                                    .font(.caption2)
-                                Text("Sent to Hal every 5 seconds")
-                                    .font(.caption2)
-                                    .foregroundColor(HaggleTheme.textSecondary)
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "waveform.path")
+                                        .foregroundColor(HaggleTheme.textSecondary.opacity(0.7))
+                                        .font(.caption2)
+                                    Text("Smoothed with EWMA (α=0.4)")
+                                        .font(.caption2)
+                                        .foregroundColor(HaggleTheme.textSecondary.opacity(0.7))
+                                }
+                                
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.right.circle.fill")
+                                        .foregroundColor(HaggleTheme.accent)
+                                        .font(.caption2)
+                                    Text("Sent to Hal every 2 seconds")
+                                        .font(.caption2)
+                                        .foregroundColor(HaggleTheme.textSecondary)
+                                }
                             }
                         }
                         .padding(16)

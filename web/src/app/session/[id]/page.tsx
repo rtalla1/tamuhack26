@@ -27,6 +27,14 @@ interface StressData {
   breathingRate?: number;
 }
 
+interface HalContextLog {
+  timestamp: number;
+  stressScore: number;
+  trend: string;
+  contextSent: string;
+  messageIndex: number;
+}
+
 const NEGOTIATION_TIPS = [
   { highlight: "Silence is a tactic.", rest: "Don't rush to fill it." },
   {
@@ -69,11 +77,13 @@ export default function SessionPage() {
     score: 50,
     trend: "stable",
   });
+  const [lastHalUpdate, setLastHalUpdate] = useState<number>(0);
   const [hiddenState, setHiddenState] = useState(DEFAULT_HIDDEN_STATE);
   const [sessionData, setSessionData] = useState({
     hiddenState: DEFAULT_HIDDEN_STATE,
     stressHistory: [] as number[],
     tacticsUsed: [] as Array<{ timestamp: number; stressAtTime: number }>,
+    halContextLogs: [] as HalContextLog[],
   });
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
 
@@ -116,8 +126,11 @@ export default function SessionPage() {
     // Mark context as loaded so conversation can start
     setContextLoaded(true);
 
-    // Generate QR code for iOS pairing
-    const qrData = `haggle://${sessionId}`;
+    // Generate QR code for iOS pairing with server URL embedded
+    const serverUrl = typeof window !== 'undefined' 
+      ? `${window.location.protocol}//${window.location.host}`
+      : 'http://localhost:3000';
+    const qrData = `haggle://${sessionId}?server=${encodeURIComponent(serverUrl)}`;
     QRCode.toDataURL(qrData, { width: 200, margin: 2 })
       .then(setQrCodeUrl)
       .catch(console.error);
@@ -261,6 +274,7 @@ export default function SessionPage() {
 
   const lastStressUpdateRef = useRef<number>(0);
   const stressHistoryRef = useRef<number[]>([]);
+  const halContextLogsRef = useRef<HalContextLog[]>([]);
   const stressRef = useRef<StressData>({ 
     score: 50, 
     trend: "stable",
@@ -464,6 +478,17 @@ export default function SessionPage() {
               }
             );
             conversation.sendContextualUpdate(context);
+            setLastHalUpdate(Date.now());
+            
+            // Log what context was sent to Hal for transparency in reveal page
+            halContextLogsRef.current.push({
+              timestamp: now,
+              stressScore: stressRef.current.score,
+              trend: stressRef.current.trend,
+              contextSent: context,
+              messageIndex: messagesRef.current.length,
+            });
+            
             console.log('📤 Sent stress context to Hal:', stressRef.current.score + '%');
           }
         }
@@ -603,6 +628,7 @@ export default function SessionPage() {
           hiddenState: hiddenStateRef.current,
           messages: messagesRef.current,
           stressHistory: stressHistoryRef.current,
+          halContextLogs: halContextLogsRef.current,
           tacticsUsed: [],
         }),
       );
@@ -620,6 +646,30 @@ export default function SessionPage() {
   }, [conversation.status, sessionId, router]);
 
   const endNegotiation = async () => {
+    // If Hal is currently speaking, wait for them to finish
+    if (conversation.isSpeaking) {
+      console.log('⏳ Waiting for Hal to finish speaking before ending...');
+      
+      // Wait for isSpeaking to become false (with timeout)
+      const waitForSpeechEnd = new Promise<void>((resolve) => {
+        const checkInterval = setInterval(() => {
+          if (!conversation.isSpeaking) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 100); // Check every 100ms
+        
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          resolve();
+        }, 5000);
+      });
+      
+      await waitForSpeechEnd;
+      console.log('✅ Hal finished speaking, ending negotiation');
+    }
+
     await conversation.endSession();
 
     // Notify iPhone to disconnect
@@ -627,13 +677,14 @@ export default function SessionPage() {
       socketRef.current.emit('end-negotiation', sessionId);
     }
 
-    // Save session data for reveal (use ref for latest stress history)
+    // Save session data for reveal (use ref for latest stress history and context logs)
     localStorage.setItem(
       `haggle-session-${sessionId}`,
       JSON.stringify({
         hiddenState: hiddenState,
         messages,
         stressHistory: stressHistoryRef.current,
+        halContextLogs: halContextLogsRef.current,
         tacticsUsed: sessionData.tacticsUsed,
       }),
     );
@@ -1127,17 +1178,23 @@ export default function SessionPage() {
                         alt="Connect iPhone"
                         className="w-full h-auto"
                       />
+                      <p className="text-neutral-600 text-xs text-center mt-3">
+                        Scan to auto-configure everything
+                      </p>
                     </div>
                   )}
 
                   <div className="space-y-3">
                     <div className="bg-neutral-800 rounded-xl p-4">
-                      <p className="text-neutral-300 text-sm mb-2">
-                        <strong>Session ID:</strong>
+                      <p className="text-neutral-300 text-sm mb-2 flex items-center gap-2">
+                        <span className="text-green-400">✓</span>
+                        <strong>QR code includes:</strong>
                       </p>
-                      <p className="text-neutral-500 text-xs font-mono break-all">
-                        {sessionId}
-                      </p>
+                      <ul className="text-neutral-400 text-xs space-y-1 ml-6">
+                        <li>• Session ID</li>
+                        <li>• Server URL (auto-configured)</li>
+                        <li>• No manual setup needed</li>
+                      </ul>
                     </div>
 
                     <button
@@ -1153,9 +1210,17 @@ export default function SessionPage() {
                 <>
                   <div className="text-center mb-6">
                     <h2 className="text-2xl font-bold text-white mb-2">iPhone Connected!</h2>
-                    <p className="text-green-400 text-sm mb-4">
-                      Real-time biometric tracking enabled
-                    </p>
+                    <div className="flex items-center justify-center gap-2 mb-4">
+                      <p className="text-green-400 text-sm">
+                        Real-time biometric tracking enabled
+                      </p>
+                      {useBiometrics && Date.now() - lastHalUpdate < 3000 && (
+                        <span className="flex items-center gap-1 text-xs text-yellow-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></span>
+                          Sent to Hal
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="bg-neutral-800 rounded-xl p-5 mb-6">
@@ -1180,7 +1245,7 @@ export default function SessionPage() {
                           {calibrationProgress || "Waiting for biometric data..."}
                         </p>
                         <p className="text-yellow-300/60 text-xs text-center">
-                          Please remain calm and still during calibration (~10 seconds)
+                          Please remain calm and still during calibration (~15 seconds)
                         </p>
                       </div>
 
@@ -1205,7 +1270,7 @@ export default function SessionPage() {
                           Baseline established · Ready to begin
                         </p>
                       </div>
-                      
+
                       <button
                         onClick={startWithBiometrics}
                         className="w-full bg-gradient-to-r from-green-600 to-green-500 text-white py-3 rounded-xl font-semibold hover:from-green-700 hover:to-green-600 transition-colors"
