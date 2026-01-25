@@ -9,6 +9,8 @@ import {
   DEFAULT_HIDDEN_STATE,
 } from "@/lib/hal-prompt";
 import Image from "next/image";
+import { io, Socket } from "socket.io-client";
+import QRCode from "qrcode";
 
 interface Message {
   role: "user" | "hal";
@@ -108,6 +110,74 @@ export default function SessionPage() {
     }
     // Mark context as loaded so conversation can start
     setContextLoaded(true);
+
+    // Generate QR code for iOS pairing
+    const qrData = `haggle://${sessionId}`;
+    QRCode.toDataURL(qrData, { width: 200, margin: 2 })
+      .then(setQrCodeUrl)
+      .catch(console.error);
+  }, [sessionId]);
+
+  // Socket.IO connection for iOS biometric data
+  useEffect(() => {
+    // Initialize socket connection
+    const socket = io({
+      path: '/api/biometrics/socket',
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('🔌 Connected to biometrics server');
+      // Web client joins its own session room to receive updates
+      socket.emit('join-session', sessionId);
+    });
+
+    socket.on('ios-connected', (data) => {
+      console.log('📱 iOS device connected:', data);
+      setIosConnected(true);
+      usingRealBiometricsRef.current = true;
+    });
+
+    socket.on('stress-update', (data: {
+      heartRate: number;
+      breathingRate: number;
+      stressScore: number;
+      confidence: number;
+      timestamp: number;
+    }) => {
+      console.log('💓 Real biometric data received:', data);
+      
+      // Update biometrics with real data from iOS
+      setBiometrics(prev => ({
+        ...prev,
+        heartRate: data.heartRate,
+        breathingRate: data.breathingRate,
+      }));
+
+      // Update stress directly from iOS calculation
+      const newStress: StressData = {
+        score: data.stressScore,
+        trend: data.stressScore > stressRef.current.score + 5 ? 'rising' :
+               data.stressScore < stressRef.current.score - 5 ? 'falling' : 'stable'
+      };
+      
+      stressRef.current = newStress;
+      setStress(newStress);
+
+      // Add to history
+      stressHistoryRef.current = [...stressHistoryRef.current.slice(-100), data.stressScore];
+    });
+
+    socket.on('disconnect', () => {
+      console.log('🔌 Disconnected from biometrics server');
+      setIosConnected(false);
+      usingRealBiometricsRef.current = false;
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, [sessionId]);
 
   // Simulated biometrics (replace with real Presage data via Socket.IO)
@@ -116,6 +186,13 @@ export default function SessionPage() {
     breathingRate: 14,
     baseline: { heartRate: 72, breathingRate: 14 },
   });
+
+  // iOS connection state
+  const [iosConnected, setIosConnected] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
+  const [showQR, setShowQR] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
+  const usingRealBiometricsRef = useRef(false);
 
   const lastStressUpdateRef = useRef<number>(0);
   const stressHistoryRef = useRef<number[]>([]);
@@ -242,56 +319,60 @@ export default function SessionPage() {
   }, [conversation, hiddenState, scenarioContext]);
 
   // Simulate biometrics and calculate stress (all in one interval to avoid loops)
+  // Skip simulation if using real biometrics from iOS
   useEffect(() => {
     const interval = setInterval(() => {
-      // Update biometrics
-      setBiometrics((prev) => {
-        const newHR = Math.max(
-          60,
-          Math.min(120, prev.heartRate + (Math.random() - 0.5) * 4),
-        );
-        const newBR = Math.max(
-          10,
-          Math.min(25, prev.breathingRate + (Math.random() - 0.5) * 2),
-        );
+      // Only simulate if NOT using real biometrics from iOS
+      if (!usingRealBiometricsRef.current) {
+        // Update biometrics
+        setBiometrics((prev) => {
+          const newHR = Math.max(
+            60,
+            Math.min(120, prev.heartRate + (Math.random() - 0.5) * 4),
+          );
+          const newBR = Math.max(
+            10,
+            Math.min(25, prev.breathingRate + (Math.random() - 0.5) * 2),
+          );
 
-        // Calculate stress from new biometrics
-        const hrChange =
-          ((newHR - prev.baseline.heartRate) / prev.baseline.heartRate) * 100;
-        const brChange =
-          ((newBR - prev.baseline.breathingRate) /
-            prev.baseline.breathingRate) *
-          100;
+          // Calculate stress from new biometrics
+          const hrChange =
+            ((newHR - prev.baseline.heartRate) / prev.baseline.heartRate) * 100;
+          const brChange =
+            ((newBR - prev.baseline.breathingRate) /
+              prev.baseline.breathingRate) *
+            100;
 
-        const hrScore = Math.max(0, Math.min(100, 50 + hrChange * 2.5));
-        const brScore = Math.max(0, Math.min(100, 50 + brChange * 2));
-        const newScore = Math.round(hrScore * 0.6 + brScore * 0.4);
+          const hrScore = Math.max(0, Math.min(100, 50 + hrChange * 2.5));
+          const brScore = Math.max(0, Math.min(100, 50 + brChange * 2));
+          const newScore = Math.round(hrScore * 0.6 + brScore * 0.4);
 
-        // Calculate trend
-        const history = stressHistoryRef.current;
-        let trend: "rising" | "falling" | "stable" = "stable";
-        if (history.length >= 10) {
-          const recent = history.slice(-5).reduce((a, b) => a + b, 0) / 5;
-          const older = history.slice(-10, -5).reduce((a, b) => a + b, 0) / 5;
-          if (recent > older + 5) trend = "rising";
-          else if (recent < older - 5) trend = "falling";
-        }
+          // Calculate trend
+          const history = stressHistoryRef.current;
+          let trend: "rising" | "falling" | "stable" = "stable";
+          if (history.length >= 10) {
+            const recent = history.slice(-5).reduce((a, b) => a + b, 0) / 5;
+            const older = history.slice(-10, -5).reduce((a, b) => a + b, 0) / 5;
+            if (recent > older + 5) trend = "rising";
+            else if (recent < older - 5) trend = "falling";
+          }
 
-        // Update stress history ref
-        stressHistoryRef.current = [...history.slice(-100), newScore];
-        stressRef.current = { score: newScore, trend };
+          // Update stress history ref
+          stressHistoryRef.current = [...history.slice(-100), newScore];
+          stressRef.current = { score: newScore, trend };
 
-        return {
-          ...prev,
-          heartRate: newHR,
-          breathingRate: newBR,
-        };
-      });
+          return {
+            ...prev,
+            heartRate: newHR,
+            breathingRate: newBR,
+          };
+        });
 
-      // Update stress state (read from ref to avoid stale closure)
-      setStress(stressRef.current);
+        // Update stress state (read from ref to avoid stale closure)
+        setStress(stressRef.current);
+      }
 
-      // Send stress update to agent (throttled)
+      // Send stress update to agent (throttled) - works for both simulated and real data
       const now = Date.now();
       if (now - lastStressUpdateRef.current >= 5000) {
         lastStressUpdateRef.current = now;
@@ -721,6 +802,49 @@ export default function SessionPage() {
                   <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
                     <p className="text-red-400 text-xs text-center">
                       ⚠️ Hal knows you&apos;re nervous
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* iOS Connection Status */}
+              <div className={`bg-neutral-900 rounded-3xl p-6 border ${iosConnected ? 'border-green-500/50 bg-green-500/5' : 'border-neutral-800'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-neutral-400 text-sm">Biometric Source</h2>
+                  <span className={`text-xs px-2 py-1 rounded-full ${iosConnected ? 'bg-green-500/20 text-green-400' : 'bg-neutral-700 text-neutral-400'}`}>
+                    {iosConnected ? '📱 iPhone' : '🤖 Simulated'}
+                  </span>
+                </div>
+
+                {iosConnected ? (
+                  <div className="text-center py-2">
+                    <p className="text-green-400 text-sm mb-1">✓ Real-time biometrics active</p>
+                    <p className="text-neutral-500 text-xs">Using Presage SmartSpectra SDK</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setShowQR(!showQR)}
+                      className="w-full bg-neutral-800 hover:bg-neutral-700 text-white py-2 px-4 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                    >
+                      {showQR ? '📱 Hide QR Code' : '📱 Connect iPhone'}
+                    </button>
+
+                    {showQR && qrCodeUrl && (
+                      <div className="bg-white p-3 rounded-xl">
+                        <img 
+                          src={qrCodeUrl} 
+                          alt="Connect iPhone"
+                          className="w-full h-auto"
+                        />
+                        <p className="text-neutral-900 text-xs text-center mt-2 font-mono">
+                          {sessionId}
+                        </p>
+                      </div>
+                    )}
+
+                    <p className="text-neutral-500 text-xs text-center">
+                      {showQR ? 'Scan with Haggle iOS app' : 'Using simulated stress data'}
                     </p>
                   </div>
                 )}

@@ -115,20 +115,62 @@ Hal receives this context and adapts negotiation tactics accordingly—without e
 ### The Reveal
 
 After the negotiation ends, we show:
+- **AI Transformation Pipeline** (USAA Challenge) - How stress data transformed Gemini's responses
 - Hal's **hidden budget** (what they could have paid)
 - Your **stress timeline** (when you spiked)
 - **Money left on table** (the difference)
+- **Tactics analysis** and personalized feedback
 
-## iOS Sensor App (Optional)
+## iOS Sensor App Integration
 
-For real biometrics, build the iOS app with Presage SDK:
+### Status: ✅ Server Ready | 🔄 iOS App In Progress
 
-1. Open `ios/HaggleSensor` in Xcode
-2. Add Presage SDK via CocoaPods/SPM
-3. Configure your Presage API key
-4. Build and run on a real iPhone
+The web app now has **full Socket.IO integration** to receive real-time biometric data from the iOS companion app.
 
-The iOS app sends biometric data via Socket.IO to the web app.
+### How It Works
+
+```
+iPhone (Presage SDK) → Socket.IO → Web App → ElevenLabs/Gemini
+  📱 Heart rate          🔌 Real-time    💻 Stress gauge    🧠 AI adapts
+  📱 Breathing           🔌 WebSocket    💻 QR code pairing  🧠 Tactics shift
+```
+
+### For Web App Users (Already Implemented)
+
+1. **Start a negotiation session**
+2. **Click "Connect iPhone"** in the biometrics panel
+3. **Scan QR code** with Haggle iOS app
+4. **iPhone connects automatically** via Socket.IO
+5. **Real-time stress data** replaces simulated data
+
+### For iOS App Development
+
+**Socket.IO Endpoint:** `ws://localhost:3000/api/biometrics/socket`
+
+**Events to implement:**
+```typescript
+// 1. Connect and join session
+socket.emit('join-session', sessionId);
+
+// 2. Send biometric updates (every 1-2 seconds)
+socket.emit('biometric-update', {
+  sessionId: string,
+  heartRate: number,        // bpm
+  breathingRate: number,    // breaths/min
+  stressScore: number,      // 0-100
+  confidence: number,       // 0-1 (optional)
+  timestamp: number         // milliseconds
+});
+
+// 3. Listen for connection confirmation
+socket.on('ios-connected', (data) => {
+  console.log('Connected to session:', data);
+});
+```
+
+### Testing Without iOS
+
+The web app includes **simulated biometrics** that work identically to real data for development and demo purposes.
 
 ## Key Files
 
@@ -149,5 +191,8 @@ The iOS app sends biometric data via Socket.IO to the web app.
 ### Presage
 > "Presage's contactless biometrics detect stress in real-time. Heart rate and breathing patterns are used to calculate a stress score, which is fed to the AI negotiator."
 
+### USAA (Novel AI Transformation)
+> "We use generative AI (Gemini) and transform its output in a novel way using real-time biometric data from Presage. User stress → contextual updates → adaptive AI responses. The 'AI Transformation Pipeline' on our reveal page visualizes exactly how stress data modified each AI response."
+
 ### Capital One (Financial Literacy)
-> "Most financial literacy tools teach you to spend less. Haggle teaches you to earn more. The average person leaves $7,000 on the table—more than most save in a year."
+> "Most financial literacy tools teach you to spend less. Haggle teaches you to earn more. The average person leaves $7,000 on the table—more than most save in a year. We make negotiation skills accessible through AI-powered practice with real-time feedback."

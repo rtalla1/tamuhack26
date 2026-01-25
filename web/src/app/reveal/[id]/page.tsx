@@ -123,6 +123,7 @@ export default function RevealPage() {
       setTimeout(() => setRevealStage(3), 2700),
       setTimeout(() => setRevealStage(4), 3900),
       setTimeout(() => setRevealStage(5), 5100),
+      setTimeout(() => setRevealStage(6), 6300),
     ];
 
     return () => timers.forEach(clearTimeout);
@@ -273,9 +274,126 @@ export default function RevealPage() {
             </div>
           )}
 
+          {/* AI Transformation Story - USAA Challenge Feature */}
+          {analysis && sessionData && sessionData.tacticsUsed.length > 0 && (
+            <div
+              className={`mb-8 transition-all duration-700 ${revealStage >= 3 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+            >
+              <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 rounded-3xl p-8 border border-purple-500/30">
+                <div className="flex items-center gap-3 mb-6">
+                  <span className="text-3xl">🧠</span>
+                  <div>
+                    <h3 className="text-xl font-semibold text-white">
+                      AI Transformation Pipeline
+                    </h3>
+                    <p className="text-purple-400 text-sm">
+                      How your stress transformed Gemini&apos;s responses in real-time
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Show key moments where stress influenced AI */}
+                  {sessionData.tacticsUsed
+                    .filter((_, idx) => idx % 3 === 0 || idx === sessionData.tacticsUsed.length - 1) // Sample every 3rd + last
+                    .slice(0, 4) // Max 4 examples
+                    .map((tactic, idx) => {
+                      const relativeTime = Math.floor(
+                        (tactic.timestamp - (sessionData.messages[0]?.timestamp || tactic.timestamp)) / 1000
+                      );
+                      const minutes = Math.floor(relativeTime / 60);
+                      const seconds = relativeTime % 60;
+                      const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                      
+                      const halMessage = sessionData.messages.find(
+                        (m) => m.role === 'hal' && Math.abs(m.timestamp - tactic.timestamp) < 2000
+                      );
+
+                      const stressLevel = tactic.stressAtTime;
+                      const stressLabel = 
+                        stressLevel > 70 ? 'High Stress' :
+                        stressLevel > 50 ? 'Elevated Stress' :
+                        'Normal Stress';
+                      const stressColor = 
+                        stressLevel > 70 ? 'text-red-400 bg-red-500/10 border-red-500/30' :
+                        stressLevel > 50 ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' :
+                        'text-green-400 bg-green-500/10 border-green-500/30';
+
+                      return (
+                        <div key={idx} className="bg-neutral-900/50 rounded-2xl p-5 border border-neutral-800">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-neutral-400 text-sm font-mono">[{timeStr}]</span>
+                            <span className={`text-xs px-3 py-1 rounded-full border ${stressColor}`}>
+                              {stressLabel}: {Math.round(stressLevel)}%
+                            </span>
+                          </div>
+
+                          {/* Transformation Flow */}
+                          <div className="space-y-3">
+                            <div className="flex items-start gap-3">
+                              <div className="w-24 flex-shrink-0">
+                                <span className="text-xs text-purple-400">Gemini Input:</span>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm text-neutral-400">
+                                  Base negotiation prompt + conversation history
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-center py-1">
+                              <span className="text-purple-400">↓</span>
+                            </div>
+
+                            <div className="flex items-start gap-3">
+                              <div className="w-24 flex-shrink-0">
+                                <span className="text-xs text-blue-400">+ Stress Data:</span>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm text-blue-300">
+                                  {stressLevel > 70 
+                                    ? "User highly stressed - strategic opportunity to push harder" 
+                                    : stressLevel > 50
+                                    ? "User showing stress - apply moderate pressure"
+                                    : "User calm - maintain professional tone"}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-center py-1">
+                              <span className="text-blue-400">↓</span>
+                            </div>
+
+                            <div className="flex items-start gap-3">
+                              <div className="w-24 flex-shrink-0">
+                                <span className="text-xs text-green-400">Hal&apos;s Response:</span>
+                              </div>
+                              <div className="flex-1 bg-neutral-800 rounded-xl p-3 border border-neutral-700">
+                                <p className="text-sm text-white">
+                                  &ldquo;{halMessage?.content.slice(0, 120) || 'Continuing negotiation...'}
+                                  {(halMessage?.content.length || 0) > 120 ? '...' : ''}&rdquo;
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                <div className="mt-6 bg-purple-500/10 border border-purple-500/20 rounded-xl p-4">
+                  <p className="text-purple-300 text-sm text-center">
+                    <strong>Novel Transformation:</strong> Real-time biometric data from Presage SDK → 
+                    Contextual AI updates → Stress-adaptive responses from Gemini 2.5 Flash
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* The Numbers */}
           <div
-            className={`mb-8 transition-all duration-700 ${revealStage >= 3 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+            className={`mb-8 transition-all duration-700 ${revealStage >= 4 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
           >
             <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
               <h3 className="text-xl font-semibold text-white mb-6">
@@ -313,7 +431,7 @@ export default function RevealPage() {
 
           {/* Money Left */}
           <div
-            className={`mb-8 transition-all duration-700 ${revealStage >= 3 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+            className={`mb-8 transition-all duration-700 ${revealStage >= 4 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
           >
             <div
               className={`rounded-3xl p-8 text-center ${moneyLeft > 5000 ? "bg-red-500/10 border border-red-500/30" : "bg-green-500/10 border border-green-500/30"}`}
@@ -335,7 +453,7 @@ export default function RevealPage() {
 
           {/* Stress Timeline */}
           <div
-            className={`mb-8 transition-all duration-700 ${revealStage >= 4 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+            className={`mb-8 transition-all duration-700 ${revealStage >= 5 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
           >
             <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
               <h3 className="text-xl font-semibold text-white mb-6">
@@ -378,7 +496,7 @@ export default function RevealPage() {
           {/* Feedback */}
           {analysis && (
             <div
-              className={`mb-8 transition-all duration-700 ${revealStage >= 5 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+              className={`mb-8 transition-all duration-700 ${revealStage >= 6 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
             >
               <div className="grid md:grid-cols-3 gap-4">
                 <div className="bg-neutral-900 rounded-3xl p-6 border border-neutral-800">
@@ -433,7 +551,7 @@ export default function RevealPage() {
           {/* Tactics */}
           {analysis && (
             <div
-              className={`mb-8 transition-all duration-700 ${revealStage >= 5 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+              className={`mb-8 transition-all duration-700 ${revealStage >= 6 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
             >
               <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
                 <h3 className="text-xl font-semibold text-white mb-6">
@@ -484,7 +602,7 @@ export default function RevealPage() {
 
           {/* Conversation */}
           <div
-            className={`mb-8 transition-all duration-700 ${revealStage >= 5 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+            className={`mb-8 transition-all duration-700 ${revealStage >= 6 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
           >
             <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
               <h3 className="text-xl font-semibold text-white mb-6">
