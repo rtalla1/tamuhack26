@@ -138,6 +138,7 @@ export default function SessionPage() {
       console.log('📱 iOS device connected:', data);
       setIosConnected(true);
       usingRealBiometricsRef.current = true;
+      setShowQRModal(false); // Close modal when iPhone connects
     });
 
     socket.on('stress-update', (data: {
@@ -191,7 +192,9 @@ export default function SessionPage() {
   // iOS connection state
   const [iosConnected, setIosConnected] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
-  const [showQR, setShowQR] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [useBiometrics, setUseBiometrics] = useState(false);
+  const hasShownModalRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
   const usingRealBiometricsRef = useRef(false);
 
@@ -324,11 +327,11 @@ export default function SessionPage() {
   }, [conversation, hiddenState, scenarioContext]);
 
   // Simulate biometrics and calculate stress (all in one interval to avoid loops)
-  // Skip simulation if using real biometrics from iOS
+  // Skip simulation if using real biometrics from iOS or if biometrics disabled
   useEffect(() => {
     const interval = setInterval(() => {
-      // Only simulate if NOT using real biometrics from iOS
-      if (!usingRealBiometricsRef.current) {
+      // Only simulate if using biometrics AND not using real data from iOS
+      if (useBiometrics && !usingRealBiometricsRef.current) {
         // Update biometrics
         setBiometrics((prev) => {
           const newHR = Math.max(
@@ -377,37 +380,58 @@ export default function SessionPage() {
         setStress(stressRef.current);
       }
 
-      // Send stress update to agent (throttled) - works for both simulated and real data
-      const now = Date.now();
-      if (now - lastStressUpdateRef.current >= 5000) {
-        lastStressUpdateRef.current = now;
-        if (conversation.status === "connected") {
-          const context = buildStressContext(
-            stressRef.current.score,
-            stressRef.current.trend,
-          );
-          conversation.sendContextualUpdate(context);
+      // Send stress update to agent (throttled) - only if biometrics are enabled
+      if (useBiometrics) {
+        const now = Date.now();
+        if (now - lastStressUpdateRef.current >= 5000) {
+          lastStressUpdateRef.current = now;
+          if (conversation.status === "connected") {
+            const context = buildStressContext(
+              stressRef.current.score,
+              stressRef.current.trend,
+            );
+            conversation.sendContextualUpdate(context);
+          }
         }
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [conversation]);
+  }, [conversation, useBiometrics]);
 
-  // Auto-start conversation on mount (only once) - skip in dev mode
-  // Wait for context to load before starting
+  // Auto-show QR modal if iPhone not connected
   useEffect(() => {
-    if (hasStartedRef.current || isDevMode || !contextLoaded) return;
+    if (!iosConnected && !hasShownModalRef.current && qrCodeUrl) {
+      // Wait a moment for the page to load, then show modal
+      const timer = setTimeout(() => {
+        setShowQRModal(true);
+        hasShownModalRef.current = true;
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [iosConnected, qrCodeUrl]);
 
-    const timer = setTimeout(() => {
-      if (conversation.status === "disconnected" && !hasStartedRef.current) {
-        hasStartedRef.current = true;
-        startConversation();
-      }
-    }, 1000);
+  // Handler to start negotiation without biometrics
+  const startWithoutBiometrics = useCallback(() => {
+    setUseBiometrics(false);
+    usingRealBiometricsRef.current = false;
+    setShowQRModal(false);
+    if (!hasStartedRef.current && conversation.status === "disconnected" && !isDevMode) {
+      hasStartedRef.current = true;
+      startConversation();
+    }
+  }, [conversation.status, startConversation, isDevMode]);
 
-    return () => clearTimeout(timer);
-  }, [conversation.status, startConversation, isDevMode, contextLoaded]);
+  // Handler to start negotiation with biometrics
+  const startWithBiometrics = useCallback(() => {
+    setUseBiometrics(true);
+    usingRealBiometricsRef.current = true;
+    setShowQRModal(false);
+    if (!hasStartedRef.current && conversation.status === "disconnected" && !isDevMode) {
+      hasStartedRef.current = true;
+      startConversation();
+    }
+  }, [conversation.status, startConversation, isDevMode]);
 
   // Cycle through negotiation tips
   useEffect(() => {
@@ -610,7 +634,7 @@ export default function SessionPage() {
                             />
                           </div>
                           <span className="text-neutral-500 text-sm">
-                            hal is thinking...
+                            hal is speaking...
                           </span>
                         </div>
                       </div>
@@ -769,150 +793,151 @@ export default function SessionPage() {
 
             {/* Biometrics Panel */}
             <div className="lg:col-span-1 space-y-4">
-              {/* Stress Meter */}
-              <div
-                className={`bg-neutral-900 rounded-3xl p-6 border ${stress.score > 65 ? "border-red-500/50 bg-red-500/5" : "border-neutral-800"}`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-neutral-400 text-sm">Stress Level</h2>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      stress.score > 70
-                        ? "bg-red-500/20 text-red-400"
-                        : stress.score > 50
-                          ? "bg-yellow-500/20 text-yellow-400"
-                          : "bg-green-500/20 text-green-400"
-                    }`}
-                  >
-                    {stress.trend === "rising"
-                      ? "↑ rising"
-                      : stress.trend === "falling"
-                        ? "↓ falling"
-                        : "→ stable"}
-                  </span>
-                </div>
-
-                <div className="text-center mb-4">
-                  <span
-                    className={`text-6xl font-bold font-mono ${
-                      stress.score > 70
-                        ? "text-red-500"
-                        : stress.score > 50
-                          ? "text-yellow-500"
-                          : "text-green-500"
-                    }`}
-                  >
-                    {Math.round(stress.score)}
-                  </span>
-                  <span className="text-neutral-600 text-2xl">%</span>
-                </div>
-
-                <div className="h-2 bg-neutral-800 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-500 rounded-full ${
-                      stress.score > 70
-                        ? "bg-red-500"
-                        : stress.score > 50
-                          ? "bg-yellow-500"
-                          : "bg-green-500"
-                    }`}
-                    style={{ width: `${stress.score}%` }}
-                  />
-                </div>
-
-                {stress.score > 65 && (
-                  <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
-                    <p className="text-red-400 text-xs text-center">
-                      ⚠️ Hal knows you&apos;re nervous
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* iOS Connection Status */}
-              <div className={`bg-neutral-900 rounded-3xl p-6 border ${iosConnected ? 'border-green-500/50 bg-green-500/5' : 'border-neutral-800'}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-neutral-400 text-sm">Biometric Source</h2>
-                  <span className={`text-xs px-2 py-1 rounded-full ${iosConnected ? 'bg-green-500/20 text-green-400' : 'bg-neutral-700 text-neutral-400'}`}>
-                    {iosConnected ? '📱 iPhone' : '🤖 Simulated'}
-                  </span>
-                </div>
-
-                {iosConnected ? (
-                  <div className="text-center py-2">
-                    <p className="text-green-400 text-sm mb-1">✓ Real-time biometrics active</p>
-                    <p className="text-neutral-500 text-xs">Using Presage SmartSpectra SDK</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <button
-                      onClick={() => setShowQR(!showQR)}
-                      className="w-full bg-neutral-800 hover:bg-neutral-700 text-white py-2 px-4 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+              {/* Stress Meter - Only show when biometrics are enabled */}
+              {useBiometrics && (
+                <div
+                  className={`bg-neutral-900 rounded-3xl p-6 border ${stress.score > 65 ? "border-red-500/50 bg-red-500/5" : "border-neutral-800"}`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-neutral-400 text-sm">Stress Level</h2>
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        stress.score > 70
+                          ? "bg-red-500/20 text-red-400"
+                          : stress.score > 50
+                            ? "bg-yellow-500/20 text-yellow-400"
+                            : "bg-green-500/20 text-green-400"
+                      }`}
                     >
-                      {showQR ? 'Hide QR Code' : 'Connect iPhone'}
-                    </button>
+                      {stress.trend === "rising"
+                        ? "↑ rising"
+                        : stress.trend === "falling"
+                          ? "↓ falling"
+                          : "→ stable"}
+                    </span>
+                  </div>
 
-                    {showQR && qrCodeUrl && (
-                      <div className="bg-white p-3 rounded-xl">
-                        <img 
-                          src={qrCodeUrl} 
-                          alt="Connect iPhone"
-                          className="w-full h-auto"
+                  <div className="text-center mb-4">
+                    <span
+                      className={`text-6xl font-bold font-mono ${
+                        stress.score > 70
+                          ? "text-red-500"
+                          : stress.score > 50
+                            ? "text-yellow-500"
+                            : "text-green-500"
+                      }`}
+                    >
+                      {Math.round(stress.score)}
+                    </span>
+                    <span className="text-neutral-600 text-2xl">%</span>
+                  </div>
+
+                  <div className="h-2 bg-neutral-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-500 rounded-full ${
+                        stress.score > 70
+                          ? "bg-red-500"
+                          : stress.score > 50
+                            ? "bg-yellow-500"
+                            : "bg-green-500"
+                      }`}
+                      style={{ width: `${stress.score}%` }}
+                    />
+                  </div>
+
+                  {stress.score > 65 && (
+                    <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+                      <p className="text-red-400 text-xs text-center">
+                        ⚠️ Hal knows you&apos;re nervous
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Biometric Status */}
+              {useBiometrics ? (
+                <div className={`bg-neutral-900 rounded-3xl p-6 border ${iosConnected ? 'border-green-500/50 bg-green-500/5' : 'border-neutral-800'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-neutral-400 text-sm">Biometric Source</h2>
+                    <span className={`text-xs px-2 py-1 rounded-full ${iosConnected ? 'bg-green-500/20 text-green-400' : 'bg-neutral-700 text-neutral-400'}`}>
+                      {iosConnected ? '📱 iPhone' : '⚠️ Waiting'}
+                    </span>
+                  </div>
+
+                  {iosConnected ? (
+                    <div className="text-center py-2">
+                      <p className="text-green-400 text-sm mb-1">✓ Real-time biometrics active</p>
+                      <p className="text-neutral-500 text-xs">Using Presage SmartSpectra SDK</p>
+                    </div>
+                  ) : (
+                    <div className="text-center py-2">
+                      <p className="text-yellow-400 text-sm mb-1">Waiting for iPhone...</p>
+                      <p className="text-neutral-500 text-xs">Check camera permissions</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-neutral-900 rounded-3xl p-6 border border-neutral-800">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-neutral-400 text-sm">Biometric Tracking</h2>
+                    <span className="text-xs px-2 py-1 rounded-full bg-neutral-700 text-neutral-400">
+                      🚫 Disabled
+                    </span>
+                  </div>
+                  <div className="text-center py-2">
+                    <p className="text-neutral-400 text-sm">No biometric data collected</p>
+                    <p className="text-neutral-500 text-xs mt-1">Focus on your strategy</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Vitals - Only show when biometrics are enabled */}
+              {useBiometrics && (
+                <div className="bg-neutral-900 rounded-3xl p-6 border border-neutral-800">
+                  <h2 className="text-neutral-400 text-sm mb-4">Your Vitals</h2>
+
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-neutral-500 text-sm">
+                          Heart Rate
+                        </span>
+                        <span className="text-white font-mono text-sm">
+                          {Math.round(biometrics.heartRate)} bpm
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-red-500 transition-all duration-300 rounded-full"
+                          style={{
+                            width: `${Math.min((biometrics.heartRate / 120) * 100, 100)}%`,
+                          }}
                         />
                       </div>
-                    )}
-
-                    <p className="text-neutral-500 text-xs text-center">
-                      {showQR ? 'Scan with Haggle iOS app' : 'Using simulated stress data'}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Vitals */}
-              <div className="bg-neutral-900 rounded-3xl p-6 border border-neutral-800">
-                <h2 className="text-neutral-400 text-sm mb-4">Your Vitals</h2>
-
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-neutral-500 text-sm">
-                        Heart Rate
-                      </span>
-                      <span className="text-white font-mono text-sm">
-                        {Math.round(biometrics.heartRate)} bpm
-                      </span>
                     </div>
-                    <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-red-500 transition-all duration-300 rounded-full"
-                        style={{
-                          width: `${Math.min((biometrics.heartRate / 120) * 100, 100)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
 
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-neutral-500 text-sm">
-                        Breathing
-                      </span>
-                      <span className="text-white font-mono text-sm">
-                        {Math.round(biometrics.breathingRate)}/min
-                      </span>
-                    </div>
-                    <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500 transition-all duration-300 rounded-full"
-                        style={{
-                          width: `${Math.min((biometrics.breathingRate / 25) * 100, 100)}%`,
-                        }}
-                      />
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-neutral-500 text-sm">
+                          Breathing
+                        </span>
+                        <span className="text-white font-mono text-sm">
+                          {Math.round(biometrics.breathingRate)}/min
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 transition-all duration-300 rounded-full"
+                          style={{
+                            width: `${Math.min((biometrics.breathingRate / 25) * 100, 100)}%`,
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Status */}
               <div className="bg-neutral-900 rounded-3xl p-6 border border-neutral-800">
@@ -963,6 +988,94 @@ export default function SessionPage() {
             </div>
           </div>
         </div>
+
+        {/* Start Modal - Required before beginning negotiation */}
+        {showQRModal && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          >
+            <div 
+              className="bg-neutral-900 rounded-3xl p-8 max-w-md w-full mx-4 border border-neutral-800"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {!iosConnected ? (
+                // No iPhone connected - show QR and option to continue without
+                <>
+                  <div className="text-center mb-6">
+                    <h2 className="text-2xl font-bold text-white mb-2">Ready to Negotiate?</h2>
+                    <p className="text-neutral-400 text-sm">
+                      Use the Haggle Connect iPhone app to enable real-time stress detection.
+                    </p>
+                  </div>
+
+                  {qrCodeUrl && (
+                    <div className="bg-white p-6 rounded-2xl mb-6">
+                      <img 
+                        src={qrCodeUrl} 
+                        alt="Connect iPhone"
+                        className="w-full h-auto"
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <div className="bg-neutral-800 rounded-xl p-4">
+                      <p className="text-neutral-300 text-sm mb-2">
+                        <strong>Session ID:</strong>
+                      </p>
+                      <p className="text-neutral-500 text-xs font-mono break-all">
+                        {sessionId}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={startWithoutBiometrics}
+                      className="w-full bg-white text-black py-3 rounded-xl font-semibold hover:bg-neutral-200 transition-colors"
+                    >
+                      Continue Without Biometrics
+                    </button>
+                  </div>
+                </>
+              ) : (
+                // iPhone connected - show setup instructions
+                <>
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <span className="text-3xl">📱</span>
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-2">iPhone Connected!</h2>
+                    <p className="text-green-400 text-sm mb-4">
+                      Real-time biometric tracking enabled
+                    </p>
+                  </div>
+
+                  <div className="bg-neutral-800 rounded-xl p-5 mb-6">
+                    <h3 className="text-white font-semibold mb-3 text-sm">Setup Instructions:</h3>
+                    <ol className="space-y-2 text-neutral-300 text-sm list-decimal list-inside">
+                      <li>Position your iPhone camera to clearly see your face</li>
+                      <li>Ensure good lighting for accurate readings</li>
+                      <li>Keep your face in frame during the negotiation</li>
+                      <li>The app will track your stress in real-time</li>
+                    </ol>
+                  </div>
+
+                  <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 mb-6">
+                    <p className="text-purple-300 text-xs text-center">
+                      <strong>🧠 AI Adaptation:</strong> Hal will sense your stress and adjust tactics accordingly
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={startWithBiometrics}
+                    className="w-full bg-gradient-to-r from-green-600 to-green-500 text-white py-3 rounded-xl font-semibold hover:from-green-700 hover:to-green-600 transition-colors"
+                  >
+                    Start Negotiation
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
