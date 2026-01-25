@@ -1236,7 +1236,7 @@ export default function SessionPage() {
                           {calibrationProgress || "Waiting for biometric data..."}
                         </p>
                         <p className="text-yellow-300/60 text-xs text-center">
-                          Please remain calm and still during calibration (~15 seconds)
+                          Please remain calm and still during calibration (~10 seconds)
                         </p>
                       </div>
 
