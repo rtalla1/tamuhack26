@@ -60,6 +60,7 @@ export default function SessionPage() {
   const isDevMode = searchParams.get("dev") === "true";
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [pendingHalMessage, setPendingHalMessage] = useState<Message | null>(null);
   const [stress, setStress] = useState<StressData>({
     score: 50,
     trend: "stable",
@@ -225,21 +226,18 @@ export default function SessionPage() {
         if (content && typeof content === "string") {
           const role: "user" | "hal" =
             message.source === "user" ? "user" : "hal";
-          setMessages((prev) => {
-            const newMessages: Message[] = [
-              ...prev,
-              {
-                role,
-                content,
-                timestamp: Date.now(),
-              },
-            ];
-            messagesRef.current = newMessages; // Keep ref in sync
-            return newMessages;
-          });
+          
+          const newMessage: Message = {
+            role,
+            content,
+            timestamp: Date.now(),
+          };
 
-          // Log stress at time of Hal's response for The Reveal
           if (role === "hal") {
+            // Store Hal's message as pending - will be shown after speech ends
+            setPendingHalMessage(newMessage);
+            
+            // Log stress at time of Hal's response for The Reveal
             setSessionData((prev) => ({
               ...prev,
               tacticsUsed: [
@@ -250,6 +248,13 @@ export default function SessionPage() {
                 },
               ],
             }));
+          } else {
+            // User messages show immediately
+            setMessages((prev) => {
+              const newMessages: Message[] = [...prev, newMessage];
+              messagesRef.current = newMessages;
+              return newMessages;
+            });
           }
         }
       } catch (e) {
@@ -411,6 +416,23 @@ export default function SessionPage() {
     }, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  // Add pending Hal message to messages array when speech ends
+  const prevIsSpeaking = useRef(false);
+  useEffect(() => {
+    // Detect when speaking stops (true -> false)
+    if (prevIsSpeaking.current === true && !conversation.isSpeaking) {
+      if (pendingHalMessage) {
+        setMessages((prev) => {
+          const newMessages: Message[] = [...prev, pendingHalMessage];
+          messagesRef.current = newMessages;
+          return newMessages;
+        });
+        setPendingHalMessage(null);
+      }
+    }
+    prevIsSpeaking.current = conversation.isSpeaking;
+  }, [conversation.isSpeaking, pendingHalMessage]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -827,7 +849,7 @@ export default function SessionPage() {
                       onClick={() => setShowQR(!showQR)}
                       className="w-full bg-neutral-800 hover:bg-neutral-700 text-white py-2 px-4 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
                     >
-                      {showQR ? '📱 Hide QR Code' : '📱 Connect iPhone'}
+                      {showQR ? 'Hide QR Code' : 'Connect iPhone'}
                     </button>
 
                     {showQR && qrCodeUrl && (
@@ -837,9 +859,6 @@ export default function SessionPage() {
                           alt="Connect iPhone"
                           className="w-full h-auto"
                         />
-                        <p className="text-neutral-900 text-xs text-center mt-2 font-mono">
-                          {sessionId}
-                        </p>
                       </div>
                     )}
 

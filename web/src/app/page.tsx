@@ -385,8 +385,8 @@ export default function Home() {
 
                     {/* Hal's insight */}
                     <div className="mt-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-                      <p className="text-xs text-red-400 font-medium mb-1">
-                        🎭 Hal noticed
+                      <p className="text-red-400 font-medium mb-1">
+                        Hal noticed
                       </p>
                       <p className="text-sm text-neutral-400">
                         Your heart rate jumped when he said &quot;stretching our

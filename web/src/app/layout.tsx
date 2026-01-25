@@ -16,7 +16,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Haggle: AI Negotiation Trainer",
-  description: "Practice salary negotiation with an AI that reads your stress and uses it against you.",
+  description: "Practice negotiating with an AI that reads your stress and uses it against you.",
 };
 
 export default function RootLayout({
