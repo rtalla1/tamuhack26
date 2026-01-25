@@ -126,11 +126,8 @@ export default function SessionPage() {
     // Mark context as loaded so conversation can start
     setContextLoaded(true);
 
-    // Generate QR code for iOS pairing with server URL embedded
-    const serverUrl = typeof window !== 'undefined' 
-      ? `${window.location.protocol}//${window.location.host}`
-      : 'http://localhost:3000';
-    const qrData = `haggle://${sessionId}?server=${encodeURIComponent(serverUrl)}`;
+    // Generate QR code for iOS pairing (simple session ID only)
+    const qrData = `haggle://${sessionId}`;
     QRCode.toDataURL(qrData, { width: 200, margin: 2 })
       .then(setQrCodeUrl)
       .catch(console.error);
@@ -1178,23 +1175,17 @@ export default function SessionPage() {
                         alt="Connect iPhone"
                         className="w-full h-auto"
                       />
-                      <p className="text-neutral-600 text-xs text-center mt-3">
-                        Scan to auto-configure everything
-                      </p>
                     </div>
                   )}
 
                   <div className="space-y-3">
                     <div className="bg-neutral-800 rounded-xl p-4">
-                      <p className="text-neutral-300 text-sm mb-2 flex items-center gap-2">
-                        <span className="text-green-400">✓</span>
-                        <strong>QR code includes:</strong>
+                      <p className="text-neutral-300 text-sm mb-2">
+                        <strong>Session ID:</strong>
                       </p>
-                      <ul className="text-neutral-400 text-xs space-y-1 ml-6">
-                        <li>• Session ID</li>
-                        <li>• Server URL (auto-configured)</li>
-                        <li>• No manual setup needed</li>
-                      </ul>
+                      <p className="text-neutral-500 text-xs font-mono break-all">
+                        {sessionId}
+                      </p>
                     </div>
 
                     <button

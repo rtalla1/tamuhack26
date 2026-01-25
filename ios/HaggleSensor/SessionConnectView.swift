@@ -7,7 +7,6 @@ struct SessionConnectView: View {
     @AppStorage("haggle_server_url") private var serverURLString: String = HaggleConfig.defaultServerURLString
 
     @State private var showScanner = false
-    @State private var showAdvancedSettings = false
     @State private var errorText: String?
 
     var body: some View {
@@ -17,57 +16,38 @@ struct SessionConnectView: View {
                     header
                         .padding(.top, geometry.safeAreaInsets.top > 0 ? 20 : 40)
 
-                    // Server Configuration Card (collapsed by default, auto-filled from QR)
-                    VStack(spacing: 12) {
-                        Button {
-                            showAdvancedSettings.toggle()
-                        } label: {
-                            HStack {
-                                Image(systemName: showAdvancedSettings ? "chevron.down" : "chevron.right")
+                    // Server Configuration Card
+                    HaggleCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "server.rack")
+                                    .foregroundColor(HaggleTheme.accent)
+                                    .font(.title3)
+                                Text("Server Configuration")
+                                    .font(.headline)
+                                    .foregroundColor(HaggleTheme.textPrimary)
+                            }
+                            
+                            Divider()
+                                .background(Color.white.opacity(0.1))
+
+                            TextField("http://192.168.1.5:3000", text: $serverURLString)
+                                .textFieldStyle(.roundedBorder)
+                                .autocapitalization(.none)
+                                .keyboardType(.URL)
+                                .tint(HaggleTheme.accent)
+                                .font(HaggleTheme.monoFont(size: 14))
+
+                            HStack(spacing: 6) {
+                                Image(systemName: "info.circle")
                                     .foregroundColor(HaggleTheme.textSecondary)
                                     .font(.caption)
-                                Text("Advanced: Server Configuration")
-                                    .font(.caption)
+                                Text("Use your Mac's Wi‑Fi IP address, not localhost")
+                                    .font(.caption2)
                                     .foregroundColor(HaggleTheme.textSecondary)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 20)
-                        }
-                        
-                        if showAdvancedSettings {
-                            HaggleCard {
-                                VStack(alignment: .leading, spacing: 14) {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "server.rack")
-                                            .foregroundColor(HaggleTheme.accent)
-                                            .font(.title3)
-                                        Text("Server Configuration")
-                                            .font(.headline)
-                                            .foregroundColor(HaggleTheme.textPrimary)
-                                    }
-                                    
-                                    Divider()
-                                        .background(Color.white.opacity(0.1))
-
-                                    TextField("http://192.168.1.5:3000", text: $serverURLString)
-                                        .textFieldStyle(.roundedBorder)
-                                        .autocapitalization(.none)
-                                        .keyboardType(.URL)
-                                        .tint(HaggleTheme.accent)
-                                        .font(HaggleTheme.monoFont(size: 14))
-
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "info.circle")
-                                            .foregroundColor(HaggleTheme.textSecondary)
-                                            .font(.caption)
-                                        Text("Usually auto-configured from QR code")
-                                            .font(.caption2)
-                                            .foregroundColor(HaggleTheme.textSecondary)
-                                    }
-                                }
-                                .padding(20)
                             }
                         }
+                        .padding(20)
                     }
 
                     // Session Connection Card
@@ -161,10 +141,10 @@ struct SessionConnectView: View {
                             }
                             
                             VStack(alignment: .leading, spacing: 10) {
-                                InstructionRow(number: "1", text: "Start a negotiation on the web app")
-                                InstructionRow(number: "2", text: "Scan the QR code (auto-configures everything)")
-                                InstructionRow(number: "3", text: "Position your face in front of the camera")
-                                InstructionRow(number: "4", text: "Stay calm for 15s calibration")
+                                InstructionRow(number: "1", text: "Enter server IP address above")
+                                InstructionRow(number: "2", text: "Scan QR code or enter session ID")
+                                InstructionRow(number: "3", text: "Tap Connect button")
+                                InstructionRow(number: "4", text: "Position face for calibration")
                             }
                         }
                         .padding(20)
@@ -179,22 +159,8 @@ struct SessionConnectView: View {
         .sheet(isPresented: $showScanner) {
             QRScannerView(
                 onScan: { raw in
-                    let result = SessionLinkParser.parse(from: raw)
-                    if let sessionId = result.sessionId {
-                        manualSessionId = sessionId
-                        
-                        // If QR includes server URL, auto-configure and connect
-                        if let serverUrl = result.serverUrl {
-                            serverURLString = serverUrl
-                            
-                            // Auto-connect with parsed server URL
-                            if let url = URL(string: serverUrl) {
-                                showScanner = false
-                                haggleManager.connect(sessionId: sessionId, serverURL: url)
-                                return
-                            }
-                        }
-                    }
+                    let parsed = SessionLinkParser.parseSessionId(from: raw) ?? ""
+                    manualSessionId = parsed
                     showScanner = false
                 },
                 onCancel: {
