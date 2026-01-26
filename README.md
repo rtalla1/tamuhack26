@@ -1,4 +1,7 @@
-# Haggle
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/4faf0c9c-8286-4562-9649-9ed9bce23594" alt="Haggle Landing Page" style="max-width: 60% height: auto;" />
+  <h1>Haggle</h1>
+</div>
 
 **Your body betrays you. Learn to beat it.**
 
