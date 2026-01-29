@@ -78,8 +78,10 @@ export default function RevealPage() {
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [retryCountdown, setRetryCountdown] = useState<number | null>(null);
   const [revealStage, setRevealStage] = useState(0);
   const hasAnalyzedRef = useRef(false);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (hasAnalyzedRef.current) return;
@@ -95,9 +97,17 @@ export default function RevealPage() {
     setLoading(false);
   }, [sessionId]);
 
-  async function runAnalysis(data: SessionData) {
+  async function runAnalysis(data: SessionData, isRetry = false) {
     setAnalyzing(true);
     setAnalysisError(null);
+    setRetryCountdown(null);
+
+    // Clear any pending retry
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
@@ -112,8 +122,32 @@ export default function RevealPage() {
       if (response.ok) {
         const result = await response.json();
         setAnalysis(result);
+        setAnalysisError(null);
       } else if (response.status === 429) {
-        setAnalysisError("Rate limit reached. Click to retry.");
+        const errorData = await response.json();
+        const retryAfter = errorData.retryAfter || 30;
+
+        setAnalysisError(
+          `Rate limit reached. Auto-retrying in ${retryAfter}s...`,
+        );
+        setRetryCountdown(retryAfter);
+
+        // Start countdown
+        const countdownInterval = setInterval(() => {
+          setRetryCountdown((prev) => {
+            if (prev === null || prev <= 1) {
+              clearInterval(countdownInterval);
+              return null;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+
+        // Auto-retry after delay
+        retryTimeoutRef.current = setTimeout(() => {
+          clearInterval(countdownInterval);
+          runAnalysis(data, true);
+        }, retryAfter * 1000);
       } else {
         console.error("Analysis failed:", await response.text());
         setAnalysisError("Analysis failed. Click to retry.");
@@ -165,11 +199,23 @@ export default function RevealPage() {
     );
   }
 
-  const finalDeal =
-    analysis?.agreedPrice || sessionData.hiddenState.currentOffer;
+  const dealReached = analysis?.dealReached ?? null; // null = pending analysis
+  const finalDeal = analysis?.agreedPrice ?? null; // Only show agreed price from analysis
+
+  // Determine if user wants higher (salary) or lower (buying) price
+  // If opening < walkaway, user wants higher. If opening > walkaway, user wants lower.
+  const userWantsHigher =
+    sessionData.hiddenState.currentOffer <
+    sessionData.hiddenState.walkAwayPrice;
+
+  // Calculate money left on table (always positive = bad for user)
   const moneyLeft =
     analysis?.moneyLeftOnTable ??
-    sessionData.hiddenState.walkAwayPrice - finalDeal;
+    (finalDeal !== null
+      ? userWantsHigher
+        ? sessionData.hiddenState.walkAwayPrice - finalDeal // Could've gotten more
+        : finalDeal - sessionData.hiddenState.walkAwayPrice // Could've paid less
+      : null);
 
   const chartData = sessionData.stressHistory.map((score, index) => ({
     time: index,
@@ -207,7 +253,7 @@ export default function RevealPage() {
       {/* Header */}
       <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <a 
+          <a
             href="/"
             className="flex items-center gap-2 bg-gradient-to-r from-neutral-600/80 to-neutral-900/80 backdrop-blur-md rounded-full px-3 py-2 border border-white/10 hover:border-white/20 transition-colors"
           >
@@ -275,98 +321,155 @@ export default function RevealPage() {
               className={`mb-8 transition-all duration-700 ${revealStage >= 2 ? "opacity-100" : "opacity-0"}`}
             >
               <div className="bg-neutral-900 rounded-3xl p-8 text-center border border-yellow-500/30">
-                <p className="text-yellow-400 mb-4">{analysisError}</p>
-                <button
-                  onClick={() => sessionData && runAnalysis(sessionData)}
-                  className="bg-white text-black px-6 py-2 rounded-full font-semibold hover:bg-neutral-200 transition-colors"
-                >
-                  Retry Analysis
-                </button>
+                {retryCountdown !== null ? (
+                  <>
+                    <div className="flex items-center justify-center gap-3 mb-4">
+                      <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-yellow-400">Rate limit reached</p>
+                    </div>
+                    <p className="text-neutral-400 text-sm mb-4">
+                      Auto-retrying in{" "}
+                      <span className="text-yellow-400 font-mono">
+                        {retryCountdown}s
+                      </span>
+                    </p>
+                    <button
+                      onClick={() => {
+                        if (retryTimeoutRef.current) {
+                          clearTimeout(retryTimeoutRef.current);
+                        }
+                        setRetryCountdown(null);
+                        setAnalysisError(null);
+                      }}
+                      className="text-neutral-500 text-sm hover:text-white transition-colors"
+                    >
+                      Cancel auto-retry
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-yellow-400 mb-4">{analysisError}</p>
+                    <button
+                      onClick={() => sessionData && runAnalysis(sessionData)}
+                      className="bg-white text-black px-6 py-2 rounded-full font-semibold hover:bg-neutral-200 transition-colors"
+                    >
+                      Retry Analysis
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}
 
           {/* Hal's Perspective - Proof of AI Adaptation */}
-          {sessionData && sessionData.halContextLogs && sessionData.halContextLogs.length > 0 && (
-            <div
-              className={`mb-8 transition-all duration-700 ${revealStage >= 3 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
-            >
-              <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 rounded-3xl p-8 border border-purple-500/30">
-                <div className="flex items-center gap-3 mb-6">
-                  <span className="text-3xl">👁️</span>
-                  <div>
-                    <h3 className="text-xl font-semibold text-white">
-                      Hal&apos;s Perspective
-                    </h3>
-                    <p className="text-purple-400 text-sm">
-                      The exact stress context Hal received during your conversation
+          {sessionData &&
+            sessionData.halContextLogs &&
+            sessionData.halContextLogs.length > 0 && (
+              <div
+                className={`mb-8 transition-all duration-700 ${revealStage >= 3 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+              >
+                <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 rounded-3xl p-8 border border-purple-500/30">
+                  <div className="flex items-center gap-3 mb-6">
+                    <span className="text-3xl">👁️</span>
+                    <div>
+                      <h3 className="text-xl font-semibold text-white">
+                        Hal&apos;s Perspective
+                      </h3>
+                      <p className="text-purple-400 text-sm">
+                        The exact stress context Hal received during your
+                        conversation
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-6">
+                    <p className="text-yellow-300 text-sm">
+                      <strong>Proof of AI adaptation:</strong> Below are the
+                      actual contextual updates sent to Gemini every 2 seconds.
+                      This is what informed Hal&apos;s tactics in real-time.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {sessionData.halContextLogs
+                      .filter(
+                        (_, idx) =>
+                          idx % 3 === 0 ||
+                          idx === sessionData.halContextLogs!.length - 1,
+                      ) // Sample every 3rd + last
+                      .slice(0, 8) // Max 8 examples
+                      .map((log, idx) => {
+                        const relativeTime = Math.floor(
+                          (log.timestamp -
+                            (sessionData.messages[0]?.timestamp ||
+                              log.timestamp)) /
+                            1000,
+                        );
+                        const minutes = Math.floor(relativeTime / 60);
+                        const seconds = relativeTime % 60;
+                        const timeStr = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+
+                        const halMessage = sessionData.messages.find(
+                          (m, i) =>
+                            m.role === "hal" &&
+                            i >= log.messageIndex &&
+                            i <= log.messageIndex + 1,
+                        );
+
+                        return (
+                          <div
+                            key={idx}
+                            className="bg-neutral-900/50 rounded-xl p-4 border border-neutral-800"
+                          >
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-neutral-400 text-xs font-mono">
+                                [{timeStr}]
+                              </span>
+                              <span
+                                className={`text-xs px-2 py-1 rounded-full ${
+                                  log.stressScore > 65
+                                    ? "bg-red-500/20 text-red-400"
+                                    : log.stressScore > 50
+                                      ? "bg-yellow-500/20 text-yellow-400"
+                                      : "bg-green-500/20 text-green-400"
+                                }`}
+                              >
+                                {log.stressScore}% ({log.trend})
+                              </span>
+                            </div>
+
+                            <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 mb-3">
+                              <p className="text-purple-300 text-xs font-mono leading-relaxed whitespace-pre-wrap">
+                                {log.contextSent}
+                              </p>
+                            </div>
+
+                            {halMessage && (
+                              <div className="mt-3 pt-3 border-t border-neutral-800">
+                                <p className="text-neutral-500 text-xs mb-1">
+                                  Hal&apos;s Response:
+                                </p>
+                                <p className="text-neutral-300 text-sm italic">
+                                  &quot;{halMessage.content.slice(0, 150)}
+                                  {halMessage.content.length > 150 ? "..." : ""}
+                                  &quot;
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  <div className="mt-4 text-center">
+                    <p className="text-neutral-500 text-xs">
+                      {sessionData.halContextLogs.length} total updates sent to
+                      Hal during negotiation
                     </p>
                   </div>
                 </div>
-
-                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-6">
-                  <p className="text-yellow-300 text-sm">
-                    <strong>Proof of AI adaptation:</strong> Below are the actual contextual updates sent to Gemini every 2 seconds. 
-                    This is what informed Hal&apos;s tactics in real-time.
-                  </p>
-                </div>
-
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {sessionData.halContextLogs
-                    .filter((_, idx) => idx % 3 === 0 || idx === sessionData.halContextLogs!.length - 1) // Sample every 3rd + last
-                    .slice(0, 8) // Max 8 examples
-                    .map((log, idx) => {
-                      const relativeTime = Math.floor(
-                        (log.timestamp - (sessionData.messages[0]?.timestamp || log.timestamp)) / 1000
-                      );
-                      const minutes = Math.floor(relativeTime / 60);
-                      const seconds = relativeTime % 60;
-                      const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-
-                      const halMessage = sessionData.messages.find(
-                        (m, i) => m.role === 'hal' && i >= log.messageIndex && i <= log.messageIndex + 1
-                      );
-
-                      return (
-                        <div key={idx} className="bg-neutral-900/50 rounded-xl p-4 border border-neutral-800">
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-neutral-400 text-xs font-mono">[{timeStr}]</span>
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              log.stressScore > 65 ? 'bg-red-500/20 text-red-400' :
-                              log.stressScore > 50 ? 'bg-yellow-500/20 text-yellow-400' :
-                              'bg-green-500/20 text-green-400'
-                            }`}>
-                              {log.stressScore}% ({log.trend})
-                            </span>
-                          </div>
-
-                          <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 mb-3">
-                            <p className="text-purple-300 text-xs font-mono leading-relaxed whitespace-pre-wrap">
-                              {log.contextSent}
-                            </p>
-                          </div>
-
-                          {halMessage && (
-                            <div className="mt-3 pt-3 border-t border-neutral-800">
-                              <p className="text-neutral-500 text-xs mb-1">Hal&apos;s Response:</p>
-                              <p className="text-neutral-300 text-sm italic">
-                                &quot;{halMessage.content.slice(0, 150)}{halMessage.content.length > 150 ? '...' : ''}&quot;
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-
-                <div className="mt-4 text-center">
-                  <p className="text-neutral-500 text-xs">
-                    {sessionData.halContextLogs.length} total updates sent to Hal during negotiation
-                  </p>
-                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* AI Transformation Story - USAA Challenge Feature */}
           {analysis && sessionData && sessionData.tacticsUsed.length > 0 && (
@@ -375,49 +478,65 @@ export default function RevealPage() {
             >
               <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 rounded-3xl p-8 border border-purple-500/30">
                 <div className="flex items-center gap-3 mb-6">
-                  <span className="text-3xl">🧠</span>
                   <div>
                     <h3 className="text-xl font-semibold text-white">
-                      AI Transformation Pipeline
+                      How your stress transformed Hal&apos;s responses
                     </h3>
-                    <p className="text-purple-400 text-sm">
-                      How your stress transformed Gemini&apos;s responses in real-time
-                    </p>
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   {/* Show key moments where stress influenced AI */}
                   {sessionData.tacticsUsed
-                    .filter((_, idx) => idx % 3 === 0 || idx === sessionData.tacticsUsed.length - 1) // Sample every 3rd + last
+                    .filter(
+                      (_, idx) =>
+                        idx % 3 === 0 ||
+                        idx === sessionData.tacticsUsed.length - 1,
+                    ) // Sample every 3rd + last
                     .slice(0, 4) // Max 4 examples
                     .map((tactic, idx) => {
                       const relativeTime = Math.floor(
-                        (tactic.timestamp - (sessionData.messages[0]?.timestamp || tactic.timestamp)) / 1000
+                        (tactic.timestamp -
+                          (sessionData.messages[0]?.timestamp ||
+                            tactic.timestamp)) /
+                          1000,
                       );
                       const minutes = Math.floor(relativeTime / 60);
                       const seconds = relativeTime % 60;
-                      const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                      
+                      const timeStr = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+
                       const halMessage = sessionData.messages.find(
-                        (m) => m.role === 'hal' && Math.abs(m.timestamp - tactic.timestamp) < 2000
+                        (m) =>
+                          m.role === "hal" &&
+                          Math.abs(m.timestamp - tactic.timestamp) < 2000,
                       );
 
                       const stressLevel = tactic.stressAtTime;
-                      const stressLabel = 
-                        stressLevel > 70 ? 'High Stress' :
-                        stressLevel > 50 ? 'Elevated Stress' :
-                        'Normal Stress';
-                      const stressColor = 
-                        stressLevel > 70 ? 'text-red-400 bg-red-500/10 border-red-500/30' :
-                        stressLevel > 50 ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' :
-                        'text-green-400 bg-green-500/10 border-green-500/30';
+                      const stressLabel =
+                        stressLevel > 70
+                          ? "High Stress"
+                          : stressLevel > 50
+                            ? "Elevated Stress"
+                            : "Normal Stress";
+                      const stressColor =
+                        stressLevel > 70
+                          ? "text-red-400 bg-red-500/10 border-red-500/30"
+                          : stressLevel > 50
+                            ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/30"
+                            : "text-green-400 bg-green-500/10 border-green-500/30";
 
                       return (
-                        <div key={idx} className="bg-neutral-900/50 rounded-2xl p-5 border border-neutral-800">
+                        <div
+                          key={idx}
+                          className="bg-neutral-900/50 rounded-2xl p-5 border border-neutral-800"
+                        >
                           <div className="flex items-center justify-between mb-3">
-                            <span className="text-neutral-400 text-sm font-mono">[{timeStr}]</span>
-                            <span className={`text-xs px-3 py-1 rounded-full border ${stressColor}`}>
+                            <span className="text-neutral-400 text-sm font-mono">
+                              [{timeStr}]
+                            </span>
+                            <span
+                              className={`text-xs px-3 py-1 rounded-full border ${stressColor}`}
+                            >
                               {stressLabel}: {Math.round(stressLevel)}%
                             </span>
                           </div>
@@ -426,30 +545,17 @@ export default function RevealPage() {
                           <div className="space-y-3">
                             <div className="flex items-start gap-3">
                               <div className="w-24 flex-shrink-0">
-                                <span className="text-xs text-purple-400">Gemini Input:</span>
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm text-neutral-400">
-                                  Base negotiation prompt + conversation history
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-center py-1">
-                              <span className="text-purple-400">↓</span>
-                            </div>
-
-                            <div className="flex items-start gap-3">
-                              <div className="w-24 flex-shrink-0">
-                                <span className="text-xs text-blue-400">+ Stress Data:</span>
+                                <span className="text-xs text-blue-400">
+                                  Stress Data:
+                                </span>
                               </div>
                               <div className="flex-1">
                                 <p className="text-sm text-blue-300">
-                                  {stressLevel > 70 
-                                    ? "User highly stressed - strategic opportunity to push harder" 
+                                  {stressLevel > 70
+                                    ? "User highly stressed - strategic opportunity to push harder"
                                     : stressLevel > 50
-                                    ? "User showing stress - apply moderate pressure"
-                                    : "User calm - maintain professional tone"}
+                                      ? "User showing stress - apply moderate pressure"
+                                      : "User calm - maintain professional tone"}
                                 </p>
                               </div>
                             </div>
@@ -460,12 +566,19 @@ export default function RevealPage() {
 
                             <div className="flex items-start gap-3">
                               <div className="w-24 flex-shrink-0">
-                                <span className="text-xs text-green-400">Hal&apos;s Response:</span>
+                                <span className="text-xs text-green-400">
+                                  Hal&apos;s Response:
+                                </span>
                               </div>
                               <div className="flex-1 bg-neutral-800 rounded-xl p-3 border border-neutral-700">
                                 <p className="text-sm text-white">
-                                  &ldquo;{halMessage?.content.slice(0, 120) || 'Continuing negotiation...'}
-                                  {(halMessage?.content.length || 0) > 120 ? '...' : ''}&rdquo;
+                                  &ldquo;
+                                  {halMessage?.content.slice(0, 120) ||
+                                    "Continuing negotiation..."}
+                                  {(halMessage?.content.length || 0) > 120
+                                    ? "..."
+                                    : ""}
+                                  &rdquo;
                                 </p>
                               </div>
                             </div>
@@ -473,13 +586,6 @@ export default function RevealPage() {
                         </div>
                       );
                     })}
-                </div>
-
-                <div className="mt-6 bg-purple-500/10 border border-purple-500/20 rounded-xl p-4">
-                  <p className="text-purple-300 text-sm text-center">
-                    <strong>Novel Transformation:</strong> Real-time biometric data from Presage SDK → 
-                    Contextual AI updates → Stress-adaptive responses from Gemini 2.5 Flash
-                  </p>
                 </div>
               </div>
             </div>
@@ -496,53 +602,132 @@ export default function RevealPage() {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-neutral-800 rounded-2xl p-5 text-center border border-neutral-700">
-                  <p className="text-neutral-500 text-sm mb-1">Opening</p>
+                  <p className="text-neutral-500 text-sm mb-1">
+                    {userWantsHigher ? "Opening" : "Asking"}
+                  </p>
                   <p className="text-2xl font-bold font-mono text-white">
                     ${sessionData.hiddenState.currentOffer.toLocaleString()}
                   </p>
                 </div>
                 <div className="bg-neutral-800 rounded-2xl p-5 text-center border border-neutral-700">
-                  <p className="text-neutral-500 text-sm mb-1">Target</p>
+                  <p className="text-neutral-500 text-sm mb-1">
+                    Hal&apos;s Target
+                  </p>
                   <p className="text-2xl font-bold font-mono text-yellow-400">
                     ${sessionData.hiddenState.targetPrice.toLocaleString()}
                   </p>
                 </div>
                 <div className="bg-neutral-800 rounded-2xl p-5 text-center border border-neutral-700">
-                  <p className="text-neutral-500 text-sm mb-1">Maximum</p>
+                  <p className="text-neutral-500 text-sm mb-1">
+                    {userWantsHigher ? "Hal's Max" : "Hal's Min"}
+                  </p>
                   <p className="text-2xl font-bold font-mono text-green-400">
                     ${sessionData.hiddenState.walkAwayPrice.toLocaleString()}
                   </p>
                 </div>
-                <div className="bg-white rounded-2xl p-5 text-center">
-                  <p className="text-neutral-600 text-sm mb-1">You Got</p>
-                  <p className="text-2xl font-bold font-mono text-black">
-                    ${finalDeal.toLocaleString()}
+                <div
+                  className={`rounded-2xl p-5 text-center ${
+                    finalDeal !== null
+                      ? "bg-white"
+                      : dealReached === false
+                        ? "bg-neutral-700"
+                        : "bg-neutral-800 border border-neutral-600"
+                  }`}
+                >
+                  <p
+                    className={`text-sm mb-1 ${
+                      finalDeal !== null
+                        ? "text-neutral-600"
+                        : "text-neutral-400"
+                    }`}
+                  >
+                    {finalDeal !== null
+                      ? userWantsHigher
+                        ? "You Got"
+                        : "You Paid"
+                      : dealReached === false
+                        ? "Result"
+                        : "Agreed Price"}
+                  </p>
+                  <p
+                    className={`text-2xl font-bold font-mono ${
+                      finalDeal !== null ? "text-black" : "text-neutral-400"
+                    }`}
+                  >
+                    {finalDeal !== null
+                      ? `$${finalDeal.toLocaleString()}`
+                      : dealReached === false
+                        ? "No Deal"
+                        : "Pending..."}
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Money Left */}
+          {/* Money Left / No Deal / Pending */}
           <div
             className={`mb-8 transition-all duration-700 ${revealStage >= 4 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
           >
-            <div
-              className={`rounded-3xl p-8 text-center ${moneyLeft > 5000 ? "bg-red-500/10 border border-red-500/30" : "bg-green-500/10 border border-green-500/30"}`}
-            >
-              <p
-                className={`text-lg mb-2 ${moneyLeft > 5000 ? "text-red-400" : "text-green-400"}`}
-              >
-                {moneyLeft > 5000
-                  ? "Money left on the table"
-                  : "Great negotiation!"}
-              </p>
-              <p
-                className={`text-6xl font-bold font-mono ${moneyLeft > 5000 ? "text-red-500" : "text-green-500"}`}
-              >
-                ${Math.abs(moneyLeft).toLocaleString()}
-              </p>
-            </div>
+            {moneyLeft !== null && finalDeal !== null ? (
+              // Use 10% of walkaway price as threshold for "good" vs "bad"
+              // e.g., $14,500 car → threshold is $1,450; $95,000 salary → threshold is $9,500
+              (() => {
+                const threshold = sessionData.hiddenState.walkAwayPrice * 0.1;
+                const isGoodDeal = moneyLeft <= threshold;
+                return (
+                  <div
+                    className={`rounded-3xl p-8 text-center ${isGoodDeal ? "bg-green-500/10 border border-green-500/30" : "bg-red-500/10 border border-red-500/30"}`}
+                  >
+                    <p
+                      className={`text-lg mb-2 ${isGoodDeal ? "text-green-400" : "text-red-400"}`}
+                    >
+                      {isGoodDeal
+                        ? "Great negotiation!"
+                        : userWantsHigher
+                          ? "Money left on the table"
+                          : "You could have saved"}
+                    </p>
+                    <p
+                      className={`text-6xl font-bold font-mono ${isGoodDeal ? "text-green-500" : "text-red-500"}`}
+                    >
+                      ${Math.abs(moneyLeft).toLocaleString()}
+                    </p>
+                    {isGoodDeal ? (
+                      <p className="text-green-400/70 text-sm mt-2">
+                        {userWantsHigher
+                          ? "You negotiated close to Hal's maximum!"
+                          : "You negotiated close to Hal's minimum!"}
+                      </p>
+                    ) : (
+                      <p className="text-red-400/70 text-sm mt-2">
+                        {userWantsHigher
+                          ? `Hal would have gone up to $${sessionData.hiddenState.walkAwayPrice.toLocaleString()}`
+                          : `Hal would have gone as low as $${sessionData.hiddenState.walkAwayPrice.toLocaleString()}`}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()
+            ) : dealReached === false ? (
+              <div className="rounded-3xl p-8 text-center bg-neutral-800 border border-neutral-700">
+                <p className="text-lg mb-2 text-neutral-400">No deal reached</p>
+                <p className="text-neutral-500 text-sm">
+                  The negotiation ended without agreeing on a final price.
+                  <br />
+                  Sometimes walking away is the right move!
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-3xl p-8 text-center bg-neutral-800/50 border border-neutral-700/50">
+                <p className="text-lg mb-2 text-neutral-400">
+                  Analyzing results...
+                </p>
+                <p className="text-neutral-500 text-sm">
+                  Waiting for AI analysis to determine the agreed price.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Stress Timeline */}
@@ -662,14 +847,18 @@ export default function RevealPage() {
 
                 <div className="space-y-6">
                   <div className="bg-neutral-900/50 rounded-2xl p-6">
-                    <h4 className="text-green-400 font-semibold mb-2 text-sm">Key Concept</h4>
+                    <h4 className="text-green-400 font-semibold mb-2 text-sm">
+                      Key Concept
+                    </h4>
                     <p className="text-white text-base">
                       {analysis.financialLiteracy.concept}
                     </p>
                   </div>
 
                   <div className="bg-neutral-900/50 rounded-2xl p-6">
-                    <h4 className="text-blue-400 font-semibold mb-2 text-sm">Real-World Application</h4>
+                    <h4 className="text-blue-400 font-semibold mb-2 text-sm">
+                      Real-World Application
+                    </h4>
                     <p className="text-neutral-300 text-sm leading-relaxed">
                       {analysis.financialLiteracy.realWorldApplication}
                     </p>
@@ -748,7 +937,7 @@ export default function RevealPage() {
           >
             <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
               <h3 className="text-xl font-semibold text-white mb-6">
-                Conversation
+                Conversation Transcript
               </h3>
 
               <div className="space-y-3 max-h-[300px] overflow-y-auto">
@@ -765,7 +954,7 @@ export default function RevealPage() {
                       }`}
                     >
                       <span className="font-medium">
-                        {message.role === "user" ? "You" : "🎭 Hal"}:
+                        {message.role === "user" ? "You" : "Hal"}:
                       </span>{" "}
                       {message.content}
                     </div>

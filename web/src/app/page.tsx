@@ -89,12 +89,10 @@ export default function Home() {
   const [selectedScenario, setSelectedScenario] = useState<Scenario>(
     SCENARIOS[1],
   );
-  const [devMode, setDevMode] = useState(false);
-
   // Generate scenario-specific context for Hal
   const getScenarioContext = (scenario: Scenario) => {
     const price = `$${scenario.openingOffer.toLocaleString()}`;
-    
+
     const contexts: Record<
       string,
       { role: string; situation: string; opener: string }
@@ -133,7 +131,7 @@ export default function Home() {
     return contexts[scenario.id] || contexts["mid"];
   };
 
-  const startSession = async (isDev = false) => {
+  const startSession = async () => {
     setIsCreating(true);
 
     const scenarioContext = getScenarioContext(selectedScenario);
@@ -163,7 +161,7 @@ export default function Home() {
           `haggle-config-${data.id}`,
           JSON.stringify(config),
         );
-        router.push(`/session/${data.id}${isDev ? "?dev=true" : ""}`);
+        router.push(`/session/${data.id}`);
       }
     } catch (error) {
       console.error("Failed to create session:", error);
@@ -176,27 +174,31 @@ export default function Home() {
       {/* Nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <a 
+          <a
             href="/"
             className="flex items-center gap-2 bg-gradient-to-r from-neutral-600/80 to-neutral-900/80 backdrop-blur-md rounded-full px-3 py-2 border border-white/10 hover:border-white/20 transition-colors"
           >
             <Image src="/favicon.ico" alt="Haggle" width={24} height={24} />
             <span className="font-bold">Haggle</span>
           </a>
-          
+
           {/* Pill Nav */}
           <div className="flex items-center gap-1 bg-neutral-900/80 backdrop-blur-md rounded-full px-1 py-1 border border-white/10">
-            <button 
+            <button
               onClick={() => {
-                document.getElementById('meet-hal')?.scrollIntoView({ behavior: 'smooth' });
+                document
+                  .getElementById("meet-hal")
+                  ?.scrollIntoView({ behavior: "smooth" });
               }}
               className="px-4 py-2 rounded-full text-sm text-neutral-400 hover:text-white hover:bg-white/10 transition-colors"
             >
               Meet Hal
             </button>
-            <button 
+            <button
               onClick={() => {
-                document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' });
+                document
+                  .getElementById("how-it-works")
+                  ?.scrollIntoView({ behavior: "smooth" });
               }}
               className="px-4 py-2 rounded-full text-sm text-neutral-400 hover:text-white hover:bg-white/10 transition-colors"
             >
@@ -319,20 +321,11 @@ export default function Home() {
                       </div>
 
                       <button
-                        onClick={() => startSession(false)}
+                        onClick={() => startSession()}
                         disabled={isCreating}
                         className="w-full bg-white text-black font-semibold py-4 rounded-full hover:bg-neutral-200 transition-colors disabled:opacity-50"
                       >
                         {isCreating ? "Loading..." : "Let's go"}
-                      </button>
-
-                      {/* Dev mode button */}
-                      <button
-                        onClick={() => startSession(true)}
-                        disabled={isCreating}
-                        className="w-full mt-2 bg-transparent text-neutral-500 font-medium py-2 rounded-full hover:text-neutral-300 transition-colors disabled:opacity-50 text-sm"
-                      >
-                        🛠️ Dev mode (no voice)
                       </button>
                     </div>
                   )}
@@ -368,8 +361,8 @@ export default function Home() {
                       <div className="bg-neutral-800 rounded-2xl rounded-bl-md p-4 max-w-[85%]">
                         <p className="text-sm text-neutral-400 mb-1">Hal</p>
                         <p className="text-neutral-200">
-                          &quot;I can see this is important to you, but I need to 
-                          be honest. $82,000 is really stretching our
+                          &quot;I can see this is important to you, but I need
+                          to be honest. $82,000 is really stretching our
                           budget...&quot;
                         </p>
                       </div>
@@ -413,24 +406,24 @@ export default function Home() {
                 This is <span className="text-orange-500">Hal</span>.
               </h2>
               <p className="text-xl text-neutral-400 mb-6 leading-relaxed">
-                Hal is an AI negotiator with one job: get the best deal for himself. 
-                He has a hidden budget, secret tactics, and years of negotiation 
-                training baked into his neural networks.
+                Hal is an AI negotiator with one job: get the best deal for
+                himself. He has a hidden budget, secret tactics, and years of
+                negotiation training baked into his neural networks.
               </p>
               <p className="text-xl text-neutral-400 mb-6 leading-relaxed">
                 But here&apos;s what makes him different:{" "}
                 <span className="text-white font-medium">
                   Hal can read your stress in real-time.
                 </span>{" "}
-                When your heart rate spikes or your breathing quickens, he knows 
+                When your heart rate spikes or your breathing quickens, he knows
                 you&apos;re nervous. He&apos;ll use that against you.
               </p>
               <p className="text-xl text-neutral-400">
-                After each session, you&apos;ll see exactly what Hal knew, when he 
-                exploited you, and how to do better next time.
+                After each session, you&apos;ll see exactly what Hal knew, when
+                he exploited you, and how to do better next time.
               </p>
             </div>
-            
+
             <div className="bg-[#0f0f0f] rounded-3xl p-8 border border-neutral-800">
               <div className="text-center mb-6">
                 <div className="text-6xl mb-4">🎭</div>
@@ -440,19 +433,27 @@ export default function Home() {
                 <div className="flex items-start gap-4 p-4 bg-neutral-800/50 rounded-2xl">
                   <div>
                     <div className="font-medium text-white">Hidden Limits</div>
-                    <div className="text-sm text-neutral-400">Secret walk-away price and target you&apos;ll never see</div>
+                    <div className="text-sm text-neutral-400">
+                      Secret walk-away price and target you&apos;ll never see
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-start gap-4 p-4 bg-neutral-800/50 rounded-2xl">
                   <div>
                     <div className="font-medium text-white">Proven Tactics</div>
-                    <div className="text-sm text-neutral-400">Anchoring, silence, time pressure, empathy plays</div>
+                    <div className="text-sm text-neutral-400">
+                      Anchoring, silence, time pressure, empathy plays
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-start gap-4 p-4 bg-neutral-500/10 rounded-2xl border border-red-500/20">
                   <div>
-                    <div className="font-medium text-red-400">Stress Detection</div>
-                    <div className="text-sm text-neutral-400">Reads your biometrics and adapts in real-time</div>
+                    <div className="font-medium text-red-400">
+                      Stress Detection
+                    </div>
+                    <div className="text-sm text-neutral-400">
+                      Reads your biometrics and adapts in real-time
+                    </div>
                   </div>
                 </div>
               </div>
@@ -475,60 +476,84 @@ export default function Home() {
 
           <div className="grid md:grid-cols-3 gap-8 mb-16">
             <div className="bg-[#141414] p-8 rounded-3xl border border-neutral-800 hover:border-neutral-700 transition-colors relative">
-              <div className="absolute -top-4 -left-4 w-10 h-10 bg-white text-black rounded-full flex items-center justify-center font-bold text-lg">1</div>
+              <div className="absolute -top-4 -left-4 w-10 h-10 bg-white text-black rounded-full flex items-center justify-center font-bold text-lg">
+                1
+              </div>
               <h3 className="text-xl font-bold mb-3 text-white">
                 Pick a scenario
               </h3>
               <p className="text-neutral-400 leading-relaxed">
-                Choose from job offers, vendor contracts, used cars, or freelance gigs. 
-                Each has different stakes and tactics.
+                Choose from job offers, vendor contracts, used cars, or
+                freelance gigs. Each has different stakes and tactics.
               </p>
             </div>
 
             <div className="bg-[#141414] p-8 rounded-3xl border border-neutral-800 hover:border-neutral-700 transition-colors relative">
-              <div className="absolute -top-4 -left-4 w-10 h-10 bg-white text-black rounded-full flex items-center justify-center font-bold text-lg">2</div>
+              <div className="absolute -top-4 -left-4 w-10 h-10 bg-white text-black rounded-full flex items-center justify-center font-bold text-lg">
+                2
+              </div>
               <h3 className="text-xl font-bold mb-3 text-white">
                 Negotiate with Hal
               </h3>
               <p className="text-neutral-400 leading-relaxed">
-                Talk out loud — Hal responds in real-time voice. Your camera tracks 
-                your stress while you try to get the best deal.
+                Talk out loud — Hal responds in real-time voice. Your camera
+                tracks your stress while you try to get the best deal.
               </p>
             </div>
 
             <div className="bg-[#141414] p-8 rounded-3xl border border-neutral-800 hover:border-neutral-700 transition-colors relative">
-              <div className="absolute -top-4 -left-4 w-10 h-10 bg-white text-black rounded-full flex items-center justify-center font-bold text-lg">3</div>
-              <h3 className="text-xl font-bold mb-3 text-white">See the reveal</h3>
+              <div className="absolute -top-4 -left-4 w-10 h-10 bg-white text-black rounded-full flex items-center justify-center font-bold text-lg">
+                3
+              </div>
+              <h3 className="text-xl font-bold mb-3 text-white">
+                See the reveal
+              </h3>
               <p className="text-neutral-400 leading-relaxed">
-                After the deal, see Hal&apos;s hidden state, your stress timeline, 
-                and exactly how much money you left on the table.
+                After the deal, see Hal&apos;s hidden state, your stress
+                timeline, and exactly how much money you left on the table.
               </p>
             </div>
           </div>
 
           {/* What you'll need */}
           <div className="bg-[#141414] rounded-3xl p-8 border border-neutral-800">
-            <h3 className="text-xl font-bold mb-6 text-center">What you&apos;ll need</h3>
+            <h3 className="text-xl font-bold mb-6 text-center">
+              What you&apos;ll need
+            </h3>
             <div className="grid md:grid-cols-3 gap-6">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-neutral-800 rounded-full flex items-center justify-center text-2xl">🎤</div>
+                <div className="w-12 h-12 bg-neutral-800 rounded-full flex items-center justify-center text-2xl">
+                  🎤
+                </div>
                 <div>
                   <div className="font-medium text-white">A microphone</div>
-                  <div className="text-sm text-neutral-500">To talk with Hal</div>
+                  <div className="text-sm text-neutral-500">
+                    To talk with Hal
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-neutral-800 rounded-full flex items-center justify-center text-2xl">📷</div>
+                <div className="w-12 h-12 bg-neutral-800 rounded-full flex items-center justify-center text-2xl">
+                  📷
+                </div>
                 <div>
-                  <div className="font-medium text-white">The Haggle iOS app</div>
-                  <div className="text-sm text-neutral-500">For camera-based stress detection</div>
+                  <div className="font-medium text-white">
+                    The Haggle iOS app
+                  </div>
+                  <div className="text-sm text-neutral-500">
+                    For camera-based stress detection
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-neutral-800 rounded-full flex items-center justify-center text-2xl">🔇</div>
+                <div className="w-12 h-12 bg-neutral-800 rounded-full flex items-center justify-center text-2xl">
+                  🔇
+                </div>
                 <div>
                   <div className="font-medium text-white">A quiet space</div>
-                  <div className="text-sm text-neutral-500">Hal listens carefully</div>
+                  <div className="text-sm text-neutral-500">
+                    Hal listens carefully
+                  </div>
                 </div>
               </div>
             </div>
@@ -573,8 +598,7 @@ export default function Home() {
           <p className="text-xl text-neutral-400 max-w-2xl mx-auto">
             You know you should negotiate. But when there&apos;s money on the
             line and pressure in the room, your body takes over. Your heart
-            races. You settle.{" "}
-            <br />
+            races. You settle. <br />
             <span className="text-white">Haggle fixes that.</span>
           </p>
         </div>
@@ -585,8 +609,10 @@ export default function Home() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-neutral-600">
           <div>TAMUhack 2026</div>
           <div className="flex items-center gap-6">
-            <span>Analysis by Google Gemini · Voice by ElevenLabs · Biometrics by
-            Presage</span>
+            <span>
+              Analysis by Google Gemini · Voice by ElevenLabs · Biometrics by
+              Presage
+            </span>
           </div>
         </div>
       </footer>

@@ -1,9 +1,9 @@
 // Gemini-powered post-conversation analysis
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
 interface AnalysisRequest {
   messages: Array<{
-    role: 'user' | 'hal';
+    role: "user" | "hal";
     content: string;
   }>;
   hiddenState: {
@@ -28,7 +28,7 @@ interface AnalysisResult {
   };
   keyMoments: Array<{
     description: string;
-    impact: 'positive' | 'negative' | 'neutral';
+    impact: "positive" | "negative" | "neutral";
   }>;
   feedback: {
     strengths: string[];
@@ -45,26 +45,32 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, hiddenState, stressHistory }: AnalysisRequest = await request.json();
+    const { messages, hiddenState, stressHistory }: AnalysisRequest =
+      await request.json();
 
     if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 500 });
+      return NextResponse.json(
+        { error: "Gemini API key not configured" },
+        { status: 500 },
+      );
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
 
     // Build conversation transcript
-    const transcript = messages.map(m => 
-      `${m.role === 'user' ? 'USER' : 'HAL'}: ${m.content}`
-    ).join('\n');
+    const transcript = messages
+      .map((m) => `${m.role === "user" ? "USER" : "HAL"}: ${m.content}`)
+      .join("\n");
 
     // Calculate average and peak stress
-    const avgStress = stressHistory.length > 0 
-      ? Math.round(stressHistory.reduce((a, b) => a + b, 0) / stressHistory.length)
-      : 50;
-    const peakStress = stressHistory.length > 0 
-      ? Math.max(...stressHistory)
-      : 50;
+    const avgStress =
+      stressHistory.length > 0
+        ? Math.round(
+            stressHistory.reduce((a, b) => a + b, 0) / stressHistory.length,
+          )
+        : 50;
+    const peakStress =
+      stressHistory.length > 0 ? Math.max(...stressHistory) : 50;
 
     const prompt = `You are an expert negotiation coach analyzing a negotiation practice session.
 
@@ -78,7 +84,7 @@ export async function POST(request: NextRequest) {
 ## USER'S STRESS DATA
 - Average stress level: ${avgStress}%
 - Peak stress level: ${peakStress}%
-- Elevated stress (>65%) occurred ${stressHistory.filter(s => s > 65).length} times
+- Elevated stress (>65%) occurred ${stressHistory.filter((s) => s > 65).length} times
 - Stress can indicate moments of pressure, uncertainty, or being caught off-guard
 
 ## CONVERSATION TRANSCRIPT
@@ -123,8 +129,14 @@ SCORING GUIDANCE:
 - Getting near or past Hal's target ($${hiddenState.targetPrice.toLocaleString()}) = good (B/C range)
 - Getting close to or exceeding Hal's walk-away ($${hiddenState.walkAwayPrice.toLocaleString()}) = excellent (A range)
 - Factor in: composure under stress, use of tactics, information gathering, and confidence
-- If no price was agreed upon, assess based on their approach and process
 - Be constructive but honest - this is a learning tool
+
+HANDLING INCOMPLETE NEGOTIATIONS:
+- If the conversation ended without an agreed price, set agreedPrice to null and dealReached to false
+- Walking away CAN be a good tactic if the terms were unfavorable - score based on the reasoning shown
+- If the user barely engaged (1-2 exchanges), note this but still provide constructive feedback
+- If the negotiation was cut short, assess what WAS demonstrated and suggest what they could try next time
+- A short negotiation with good technique is better than a long one with poor technique
 
 FINANCIAL LITERACY GUIDANCE:
 - Emphasize how negotiation skills translate to real financial impact
@@ -140,8 +152,8 @@ Return ONLY the JSON object. No markdown formatting or extra explanation.`;
     const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -149,52 +161,89 @@ Return ONLY the JSON object. No markdown formatting or extra explanation.`;
             maxOutputTokens: 2048,
           },
         }),
-      }
+      },
     );
 
     if (!geminiResponse.ok) {
       const errorData = await geminiResponse.text();
-      console.error('Gemini API error:', errorData);
-      
+      console.error("Gemini API error:", errorData);
+
       // Check if it's a rate limit error
       if (geminiResponse.status === 429) {
-        return NextResponse.json({ 
-          error: 'Rate limit exceeded. Please try again in a moment.',
-          retryAfter: 30 
-        }, { status: 429 });
+        // Try to extract retry delay from error response
+        let retryAfter = 30;
+        try {
+          const errorJson = JSON.parse(errorData);
+          const retryInfo = errorJson?.error?.details?.find(
+            (d: { "@type": string }) => d["@type"]?.includes("RetryInfo"),
+          );
+          if (retryInfo?.retryDelay) {
+            retryAfter = parseInt(retryInfo.retryDelay) || 30;
+          }
+        } catch {
+          // Use default retry time
+        }
+
+        return NextResponse.json(
+          {
+            error: "Rate limit exceeded",
+            message:
+              "Gemini API rate limit reached. The analysis will automatically retry.",
+            retryAfter,
+            isRateLimit: true,
+          },
+          { status: 429 },
+        );
       }
-      
-      return NextResponse.json({ error: 'Gemini API error', details: errorData }, { status: 500 });
+
+      return NextResponse.json(
+        { error: "Gemini API error", details: errorData },
+        { status: 500 },
+      );
     }
 
     const geminiData = await geminiResponse.json();
-    const responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
+    const responseText =
+      geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
     if (!responseText) {
-      return NextResponse.json({ error: 'Empty response from Gemini' }, { status: 500 });
+      return NextResponse.json(
+        { error: "Empty response from Gemini" },
+        { status: 500 },
+      );
     }
-    
+
     // Parse JSON from response (handle potential markdown wrapping)
     let jsonText = responseText;
-    if (responseText.includes('```json')) {
-      jsonText = responseText.split('```json')[1].split('```')[0];
-    } else if (responseText.includes('```')) {
-      jsonText = responseText.split('```')[1].split('```')[0];
+    if (responseText.includes("```json")) {
+      jsonText = responseText.split("```json")[1].split("```")[0];
+    } else if (responseText.includes("```")) {
+      jsonText = responseText.split("```")[1].split("```")[0];
     }
 
     const analysis: AnalysisResult = JSON.parse(jsonText.trim());
 
-    // Calculate money left on table
-    const finalPrice = analysis.agreedPrice || hiddenState.currentOffer;
-    analysis.moneyLeftOnTable = hiddenState.walkAwayPrice - finalPrice;
+    // Calculate money left on table (only if a deal was actually reached)
+    if (analysis.dealReached && analysis.agreedPrice !== null) {
+      // Determine direction: user wants higher (salary) or lower (buying)
+      const userWantsHigher =
+        hiddenState.currentOffer < hiddenState.walkAwayPrice;
+      analysis.moneyLeftOnTable = userWantsHigher
+        ? hiddenState.walkAwayPrice - analysis.agreedPrice // Could've gotten more
+        : analysis.agreedPrice - hiddenState.walkAwayPrice; // Could've paid less
+    } else {
+      // No deal reached - can't calculate money left on table
+      analysis.moneyLeftOnTable = 0;
+    }
 
     return NextResponse.json(analysis);
   } catch (error) {
-    console.error('Analysis error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error("Analysis error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: 'Failed to analyze conversation', details: errorMessage },
-      { status: 500 }
+      { error: "Failed to analyze conversation", details: errorMessage },
+      { status: 500 },
     );
   }
 }
