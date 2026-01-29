@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/467a4cfa-6e38-462d-8e0e-47caf61d6021" alt="Haggle Landing Page" style="max-width: 60% height: auto;" />
+  <img width="1496" height="829" alt="image" src="https://github.com/user-attachments/assets/ce5c9104-6e58-4d95-bb64-a6f18cd6ba98" />
   <h1>Haggle</h1>
 </div>
 
