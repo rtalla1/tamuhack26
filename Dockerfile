@@ -19,20 +19,18 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
-
-COPY web/package.json web/package-lock.json ./
-RUN npm ci --omit=dev
-
-COPY --from=builder /app/.next ./.next
+# Copy the standalone build (includes traced node_modules + Next.js runtime)
+COPY --from=builder /app/.next/standalone ./
+# Copy static assets into the standalone .next directory
+COPY --from=builder /app/.next/static ./.next/static
+# Copy public assets
 COPY --from=builder /app/public ./public
+# Use our custom server (with Socket.IO) instead of the standalone default
 COPY --from=builder /app/server.js ./server.js
-COPY --from=builder /app/next.config.ts ./next.config.ts
 
-USER nextjs
+# Install socket.io — standalone tracing doesn't pick it up from the custom server.js
+RUN npm install socket.io@4
 
-EXPOSE 8080
 ENV HOSTNAME=0.0.0.0
 
 CMD ["node", "server.js"]
